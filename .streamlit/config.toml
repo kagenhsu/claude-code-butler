@@ -1,0 +1,9 @@
+[browser]
+gatherUsageStats = false
+
+[client]
+showSidebarNavigation = true
+toolbarMode = "minimal"
+
+[server]
+headless = true
