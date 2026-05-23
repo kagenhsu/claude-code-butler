@@ -68,20 +68,35 @@ def detect_usage() -> UsageInfo:
     info.model_tier = model_meta.get("tier", "未知")
     info.context_window = model_meta.get("context", "未知")
 
-    # 方案推測
-    if "opus" in info.model_id and "1M" in info.context_window:
-        info.plan_name = PLAN_LIMITS["max_20x"]["name"]
-        info.plan_details = "可使用 Opus 旗艦模型 + 1M 超長上下文"
-        info.detection_notes.append("依據目前使用 Opus 4.7 (1M) 推測為 Max 方案")
-    elif "opus" in info.model_id:
-        info.plan_name = PLAN_LIMITS["max_5x"]["name"]
-        info.plan_details = "可使用 Opus 旗艦模型"
-    elif "sonnet" in info.model_id:
-        info.plan_name = PLAN_LIMITS["pro"]["name"]
-        info.plan_details = "可使用 Sonnet 進階模型"
-    else:
-        info.plan_name = "未知方案"
-        info.plan_details = ""
+    # 方案：優先讀取使用者在管家設定的方案
+    user_plan = ""
+    try:
+        from .paths import config_file
+        cf = config_file()
+        if cf.is_file():
+            butler_cfg = json.load(open(cf, encoding="utf-8"))
+            anthropic_cfg = butler_cfg.get("providers", {}).get("anthropic", {})
+            if anthropic_cfg.get("mode") == "subscription":
+                user_plan = anthropic_cfg.get("plan", "")
+                info.plan_name = anthropic_cfg.get("plan_name", user_plan)
+                info.plan_details = "使用者手動設定的方案"
+    except Exception:
+        pass
+
+    if not user_plan:
+        if "opus" in info.model_id and "1M" in info.context_window:
+            info.plan_name = PLAN_LIMITS["max_20x"]["name"]
+            info.plan_details = "可使用 Opus 旗艦模型 + 1M 超長上下文"
+            info.detection_notes.append("依據目前使用 Opus 4.7 (1M) 推測為 Max 方案")
+        elif "opus" in info.model_id:
+            info.plan_name = PLAN_LIMITS["max_5x"]["name"]
+            info.plan_details = "可使用 Opus 旗艦模型"
+        elif "sonnet" in info.model_id:
+            info.plan_name = PLAN_LIMITS["pro"]["name"]
+            info.plan_details = "可使用 Sonnet 進階模型"
+        else:
+            info.plan_name = "未知方案"
+            info.plan_details = ""
 
     # Session 統計
     sessions_dir = claude_dir / "sessions"

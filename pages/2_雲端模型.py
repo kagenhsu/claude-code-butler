@@ -1,8 +1,9 @@
-"""🤖 雲端模型 — API Key 管理 + 連線測試"""
+"""🤖 雲端模型 — 訂閱制 / API Key 管理 + 連線測試"""
 from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 
 import streamlit as st
@@ -15,7 +16,7 @@ _css = (Path(__file__).parent.parent / "assets" / "style.css").read_text()
 st.markdown(f"<style>{_css}</style>", unsafe_allow_html=True)
 
 st.title("🤖 雲端模型")
-st.caption("管理 Claude / OpenAI / Gemini 的 API Key，一鍵測試連線")
+st.caption("設定你使用的 AI 模型 — 支援訂閱制與 API Key 兩種方式")
 
 # ── 設定檔讀寫 ──────────────────────────────────────────────
 CONFIG_PATH = config_file()
@@ -31,15 +32,6 @@ def _load_config() -> dict:
 def _save_config(cfg: dict) -> None:
     CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
 
-def _get_keys(cfg: dict) -> dict:
-    return cfg.get("api_keys", {})
-
-def _set_key(cfg: dict, provider: str, key: str) -> dict:
-    if "api_keys" not in cfg:
-        cfg["api_keys"] = {}
-    cfg["api_keys"][provider] = key
-    return cfg
-
 def _mask_key(key: str) -> str:
     if not key:
         return ""
@@ -47,7 +39,7 @@ def _mask_key(key: str) -> str:
         return "****"
     return key[:4] + "…" + key[-4:]
 
-# ── 連線測試 ──────────────────────────────────────────────
+# ── 連線測試函式 ──────────────────────────────────────────
 def _test_anthropic(key: str) -> tuple[bool, str]:
     try:
         import urllib.request
@@ -66,33 +58,35 @@ def _test_anthropic(key: str) -> tuple[bool, str]:
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             return True, "連線成功"
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            return False, "API Key 無效（401 未授權）"
-        elif e.code == 429:
-            return True, "連線成功（速率限制中，但 Key 有效）"
-        else:
-            return False, f"HTTP 錯誤 {e.code}"
     except Exception as e:
+        code = getattr(e, "code", None)
+        if code == 401:
+            return False, "API Key 無效（401 未授權）"
+        if code == 429:
+            return True, "連線成功（速率限制中，但 Key 有效）"
         return False, f"連線失敗：{e}"
 
 def _test_openai(key: str) -> tuple[bool, str]:
     try:
         import urllib.request
-        req = urllib.request.Request(
-            "https://api.openai.com/v1/models",
-            headers={"Authorization": f"Bearer {key}"},
-        )
+        req = urllib.request.Request("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {key}"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             return True, "連線成功"
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            return False, "API Key 無效（401 未授權）"
-        elif e.code == 429:
-            return True, "連線成功（速率限制中，但 Key 有效）"
-        else:
-            return False, f"HTTP 錯誤 {e.code}"
     except Exception as e:
+        code = getattr(e, "code", None)
+        if code == 401: return False, "API Key 無效（401 未授權）"
+        if code == 429: return True, "連線成功（速率限制中，但 Key 有效）"
+        return False, f"連線失敗：{e}"
+
+def _test_gemini(key: str) -> tuple[bool, str]:
+    try:
+        import urllib.request
+        req = urllib.request.Request(f"https://generativelanguage.googleapis.com/v1beta/models?key={key}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return True, "連線成功"
+    except Exception as e:
+        code = getattr(e, "code", None)
+        if code in (400, 403): return False, "API Key 無效或權限不足"
         return False, f"連線失敗：{e}"
 
 def _test_minimax(key: str) -> tuple[bool, str]:
@@ -100,125 +94,86 @@ def _test_minimax(key: str) -> tuple[bool, str]:
         import urllib.request
         req = urllib.request.Request(
             "https://api.minimax.chat/v1/text/chatcompletion_v2",
-            data=json.dumps({
-                "model": "MiniMax-Text-01",
-                "messages": [{"role": "user", "content": "hi"}],
-                "max_tokens": 1,
-            }).encode(),
-            headers={
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            },
+            data=json.dumps({"model": "MiniMax-Text-01", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}).encode(),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             return True, "連線成功"
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            return False, "API Key 無效（401 未授權）"
-        elif e.code == 429:
-            return True, "連線成功（速率限制中，但 Key 有效）"
-        else:
-            return False, f"HTTP 錯誤 {e.code}"
     except Exception as e:
+        code = getattr(e, "code", None)
+        if code == 401: return False, "API Key 無效（401 未授權）"
+        if code == 429: return True, "連線成功（速率限制中，但 Key 有效）"
         return False, f"連線失敗：{e}"
 
 def _test_deepseek(key: str) -> tuple[bool, str]:
     try:
         import urllib.request
-        req = urllib.request.Request(
-            "https://api.deepseek.com/models",
-            headers={"Authorization": f"Bearer {key}"},
-        )
+        req = urllib.request.Request("https://api.deepseek.com/models", headers={"Authorization": f"Bearer {key}"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             return True, "連線成功"
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            return False, "API Key 無效（401 未授權）"
-        else:
-            return False, f"HTTP 錯誤 {e.code}"
     except Exception as e:
+        code = getattr(e, "code", None)
+        if code == 401: return False, "API Key 無效（401 未授權）"
         return False, f"連線失敗：{e}"
 
 def _test_xai(key: str) -> tuple[bool, str]:
     try:
         import urllib.request
-        req = urllib.request.Request(
-            "https://api.x.ai/v1/models",
-            headers={"Authorization": f"Bearer {key}"},
-        )
+        req = urllib.request.Request("https://api.x.ai/v1/models", headers={"Authorization": f"Bearer {key}"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             return True, "連線成功"
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            return False, "API Key 無效（401 未授權）"
-        else:
-            return False, f"HTTP 錯誤 {e.code}"
     except Exception as e:
+        code = getattr(e, "code", None)
+        if code == 401: return False, "API Key 無效（401 未授權）"
         return False, f"連線失敗：{e}"
 
 def _test_mistral(key: str) -> tuple[bool, str]:
     try:
         import urllib.request
-        req = urllib.request.Request(
-            "https://api.mistral.ai/v1/models",
-            headers={"Authorization": f"Bearer {key}"},
-        )
+        req = urllib.request.Request("https://api.mistral.ai/v1/models", headers={"Authorization": f"Bearer {key}"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             return True, "連線成功"
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            return False, "API Key 無效（401 未授權）"
-        else:
-            return False, f"HTTP 錯誤 {e.code}"
     except Exception as e:
-        return False, f"連線失敗：{e}"
-
-def _test_gemini(key: str) -> tuple[bool, str]:
-    try:
-        import urllib.request
-        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return True, "連線成功"
-    except urllib.error.HTTPError as e:
-        if e.code == 400 or e.code == 403:
-            return False, "API Key 無效或權限不足"
-        else:
-            return False, f"HTTP 錯誤 {e.code}"
-    except Exception as e:
+        code = getattr(e, "code", None)
+        if code == 401: return False, "API Key 無效（401 未授權）"
         return False, f"連線失敗：{e}"
 
 # ── 頁面說明 ──────────────────────────────────────────────
-with st.expander("❓ API Key 是什麼？怎麼取得？", expanded=False):
+with st.expander("❓ 訂閱制 vs API Key 有什麼差別？", expanded=False):
     st.markdown("""
-### API Key 是什麼？
+### 兩種使用方式
 
-API Key 是你跟 AI 公司申請的「通行證」，讓程式可以代你呼叫他們的 AI 模型。
+| | 訂閱制（月費） | API Key（按量計費） |
+|---|---|---|
+| **付費方式** | 每月固定金額 | 用多少付多少 |
+| **適合誰** | 個人日常使用 | 開發者、大量自動化 |
+| **額度** | 每月有使用上限，動態調整 | 依餘額無上限 |
+| **設定方式** | 登入帳號即可 | 需要取得 API Key |
 
-### 怎麼取得？
+### 怎麼選？
 
-| 廠商 | 申請網址 | 說明 |
-|------|----------|------|
-| **Anthropic (Claude)** | [console.anthropic.com](https://console.anthropic.com/settings/keys) | 註冊後到 Settings → API Keys 建立 |
-| **OpenAI** | [platform.openai.com](https://platform.openai.com/api-keys) | 註冊後到 API Keys 頁面建立 |
-| **Google (Gemini)** | [aistudio.google.com](https://aistudio.google.com/apikey) | 到 AI Studio 取得 API Key |
-| **MiniMax** | [platform.minimaxi.com](https://platform.minimaxi.com/user-center/basic-information/interface-key) | 註冊後到介面金鑰頁面建立 |
-| **DeepSeek** | [platform.deepseek.com](https://platform.deepseek.com/api_keys) | 註冊後到 API Keys 頁面建立 |
-| **xAI (Grok)** | [console.x.ai](https://console.x.ai/) | 註冊後建立 API Key |
-| **Mistral** | [console.mistral.ai](https://console.mistral.ai/api-keys) | 註冊後到 API Keys 頁面建立 |
+- **我只是想用 Claude Code** → 選訂閱制，直接登入就好
+- **我要用程式呼叫 AI API** → 選 API Key
+- **我想同時用好幾家 AI** → 各家分別設定
 
-### 注意事項
+### 各家 API Key 申請網址
 
-- API Key 是**機密資料**，不要分享給別人
-- Key 儲存在本機的 `config.json`，不會上傳到任何地方
-- 如果你用的是 Claude Code **訂閱制**（非 API），不需要設定 Anthropic API Key
+| 廠商 | 申請網址 |
+|------|----------|
+| Anthropic (Claude) | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) |
+| OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Google (Gemini) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| MiniMax | [platform.minimaxi.com](https://platform.minimaxi.com/user-center/basic-information/interface-key) |
+| DeepSeek | [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) |
+| xAI (Grok) | [console.x.ai](https://console.x.ai/) |
+| Mistral | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) |
 """)
 
 # ── 載入設定 ──────────────────────────────────────────────
 cfg = _load_config()
-keys = _get_keys(cfg)
+providers_cfg = cfg.get("providers", {})
 
-# ── 模型卡片 ──────────────────────────────────────────────
+# ── 廠商定義 ──────────────────────────────────────────────
 PROVIDERS = [
     {
         "id": "anthropic",
@@ -227,10 +182,17 @@ PROVIDERS = [
         "env_var": "ANTHROPIC_API_KEY",
         "key_prefix": "sk-ant-",
         "test_fn": _test_anthropic,
+        "has_subscription": True,
+        "subscription_plans": [
+            {"id": "free",    "name": "Free（免費）",       "desc": "Sonnet 模型，基礎速率", "price": "免費"},
+            {"id": "pro",     "name": "Pro（$20/月）",      "desc": "Sonnet + 有限 Opus，5 倍速率", "price": "$20/月"},
+            {"id": "max_5x",  "name": "Max 5x（$100/月）",  "desc": "Opus + Sonnet，1M 上下文，5 倍速率", "price": "$100/月"},
+            {"id": "max_20x", "name": "Max 20x（$200/月）", "desc": "Opus + Sonnet，1M 上下文，20 倍速率", "price": "$200/月"},
+        ],
         "models": [
-            ("Claude Opus 4.7", "claude-opus-4-7", "旗艦模型，最強推理能力"),
-            ("Claude Sonnet 4.6", "claude-sonnet-4-6", "進階模型，速度與能力兼顧"),
-            ("Claude Haiku 4.5", "claude-haiku-4-5", "快速模型，適合大量呼叫"),
+            ("Claude Opus 4.7", "旗艦模型，最強推理能力"),
+            ("Claude Sonnet 4.6", "進階模型，速度與能力兼顧"),
+            ("Claude Haiku 4.5", "快速模型，適合大量呼叫"),
         ],
     },
     {
@@ -240,10 +202,16 @@ PROVIDERS = [
         "env_var": "OPENAI_API_KEY",
         "key_prefix": "sk-",
         "test_fn": _test_openai,
+        "has_subscription": True,
+        "subscription_plans": [
+            {"id": "free",    "name": "Free（免費）",       "desc": "GPT-4o mini，有限額度", "price": "免費"},
+            {"id": "plus",    "name": "Plus（$20/月）",     "desc": "GPT-4o + o3-mini", "price": "$20/月"},
+            {"id": "pro",     "name": "Pro（$200/月）",     "desc": "所有模型無限制 + o3 pro", "price": "$200/月"},
+        ],
         "models": [
-            ("GPT-4o", "gpt-4o", "多模態旗艦模型"),
-            ("GPT-4o mini", "gpt-4o-mini", "輕量快速模型"),
-            ("o3", "o3", "深度推理模型"),
+            ("GPT-4o", "多模態旗艦模型"),
+            ("GPT-4o mini", "輕量快速模型"),
+            ("o3", "深度推理模型"),
         ],
     },
     {
@@ -253,9 +221,14 @@ PROVIDERS = [
         "env_var": "GOOGLE_API_KEY",
         "key_prefix": "AI",
         "test_fn": _test_gemini,
+        "has_subscription": True,
+        "subscription_plans": [
+            {"id": "free",    "name": "Free（免費）",             "desc": "Gemini Flash，有限額度", "price": "免費"},
+            {"id": "advanced","name": "Google One AI Premium（$20/月）", "desc": "Gemini 2.5 Pro 完整存取", "price": "$20/月"},
+        ],
         "models": [
-            ("Gemini 2.5 Pro", "gemini-2.5-pro", "旗艦模型，超長上下文"),
-            ("Gemini 2.5 Flash", "gemini-2.5-flash", "快速模型"),
+            ("Gemini 2.5 Pro", "旗艦模型，超長上下文"),
+            ("Gemini 2.5 Flash", "快速模型"),
         ],
     },
     {
@@ -265,9 +238,10 @@ PROVIDERS = [
         "env_var": "MINIMAX_API_KEY",
         "key_prefix": "eyJ",
         "test_fn": _test_minimax,
+        "has_subscription": False,
         "models": [
-            ("MiniMax-Text-01", "MiniMax-Text-01", "旗艦文字模型，4M 超長上下文"),
-            ("MiniMax-M1", "MiniMax-M1", "深度推理模型"),
+            ("MiniMax-Text-01", "旗艦文字模型，4M 超長上下文"),
+            ("MiniMax-M1", "深度推理模型"),
         ],
     },
     {
@@ -277,9 +251,10 @@ PROVIDERS = [
         "env_var": "DEEPSEEK_API_KEY",
         "key_prefix": "sk-",
         "test_fn": _test_deepseek,
+        "has_subscription": False,
         "models": [
-            ("DeepSeek-R1", "deepseek-r1", "深度推理模型"),
-            ("DeepSeek-V3", "deepseek-chat", "通用對話模型"),
+            ("DeepSeek-R1", "深度推理模型"),
+            ("DeepSeek-V3", "通用對話模型"),
         ],
     },
     {
@@ -289,9 +264,15 @@ PROVIDERS = [
         "env_var": "XAI_API_KEY",
         "key_prefix": "xai-",
         "test_fn": _test_xai,
+        "has_subscription": True,
+        "subscription_plans": [
+            {"id": "free",      "name": "Free（免費）",         "desc": "Grok 基礎存取", "price": "免費"},
+            {"id": "premium",   "name": "Premium（$8/月）",    "desc": "Grok 進階存取", "price": "$8/月"},
+            {"id": "supergrok", "name": "SuperGrok（$30/月）",  "desc": "Grok 3 完整存取", "price": "$30/月"},
+        ],
         "models": [
-            ("Grok 3", "grok-3", "旗艦推理模型"),
-            ("Grok 3 mini", "grok-3-mini", "快速推理模型"),
+            ("Grok 3", "旗艦推理模型"),
+            ("Grok 3 mini", "快速推理模型"),
         ],
     },
     {
@@ -301,97 +282,174 @@ PROVIDERS = [
         "env_var": "MISTRAL_API_KEY",
         "key_prefix": "",
         "test_fn": _test_mistral,
+        "has_subscription": True,
+        "subscription_plans": [
+            {"id": "free", "name": "Free（免費）", "desc": "基礎模型存取", "price": "免費"},
+            {"id": "pro",  "name": "Le Chat Pro（$10/月）", "desc": "所有模型完整存取", "price": "$10/月"},
+        ],
         "models": [
-            ("Mistral Large", "mistral-large-latest", "旗艦模型"),
-            ("Mistral Small", "mistral-small-latest", "快速模型"),
-            ("Codestral", "codestral-latest", "程式碼專用模型"),
+            ("Mistral Large", "旗艦模型"),
+            ("Mistral Small", "快速模型"),
+            ("Codestral", "程式碼專用模型"),
         ],
     },
 ]
 
+# ── 渲染每家廠商 ──────────────────────────────────────────
 for provider in PROVIDERS:
     pid = provider["id"]
-    saved_key = keys.get(pid, "")
+    p_cfg = providers_cfg.get(pid, {})
+    saved_mode = p_cfg.get("mode", "")  # "subscription" | "api_key" | ""
+    saved_key = p_cfg.get("api_key", "")
+    saved_plan = p_cfg.get("plan", "")
     env_key = os.environ.get(provider["env_var"], "")
-    active_key = saved_key or env_key
-    has_key = bool(active_key)
-    key_source = ""
-    if saved_key:
-        key_source = "（來自管家設定）"
-    elif env_key:
-        key_source = "（來自環境變數）"
+
+    # 判斷是否已設定
+    is_configured = bool(saved_mode)
+    # 特殊：Anthropic 有 Claude Code CLI 就算已連接
+    has_cli = pid == "anthropic" and shutil.which("claude")
 
     with st.container(border=True):
-        # 標題列
-        header_col, status_col = st.columns([4, 1])
-        with header_col:
-            status_icon = "✅" if has_key else "⬜"
-            st.markdown(f"### {provider['emoji']} {provider['name']} {status_icon}")
-        with status_col:
-            if has_key:
+        # ── 標題列 ──
+        h1, h2 = st.columns([4, 1])
+        with h1:
+            if is_configured or has_cli:
+                if saved_mode == "subscription" or (has_cli and not saved_mode):
+                    plan_label = saved_plan or ("已透過 Claude Code 登入" if has_cli else "已設定")
+                    st.markdown(f"### {provider['emoji']} {provider['name']} ✅")
+                    st.caption(f"🔄 訂閱制 — {plan_label}")
+                else:
+                    st.markdown(f"### {provider['emoji']} {provider['name']} ✅")
+                    display_key = saved_key or env_key
+                    source = "管家設定" if saved_key else "環境變數"
+                    st.caption(f"🔑 API Key — `{_mask_key(display_key)}`（{source}）")
+            else:
+                if env_key:
+                    st.markdown(f"### {provider['emoji']} {provider['name']} ✅")
+                    st.caption(f"🔑 API Key — `{_mask_key(env_key)}`（環境變數自動偵測）")
+                else:
+                    st.markdown(f"### {provider['emoji']} {provider['name']} ⬜")
+                    st.caption("尚未設定")
+        with h2:
+            if is_configured or has_cli or env_key:
                 st.success("已設定", icon="✅")
             else:
-                st.warning("未設定", icon="⬜")
-
-        # 目前狀態
-        if has_key:
-            st.caption(f"目前 Key：`{_mask_key(active_key)}` {key_source}")
-        else:
-            st.caption(f"尚未設定 API Key。環境變數 `{provider['env_var']}` 也未偵測到。")
+                st.info("未設定", icon="⬜")
 
         # 可用模型
         model_text = " · ".join([f"`{m[0]}`" for m in provider["models"]])
         st.caption(f"可用模型：{model_text}")
 
-        # 操作區
-        action_col1, action_col2, action_col3 = st.columns([3, 1, 1])
+        # ── 設定區域 ──
+        mode_options = []
+        if provider.get("has_subscription"):
+            mode_options.append("🔄 訂閱制（月費）")
+        mode_options.append("🔑 API Key（按量計費）")
 
-        with action_col1:
-            new_key = st.text_input(
-                f"輸入 {provider['name']} API Key",
-                type="password",
-                placeholder=f"{provider['key_prefix']}...",
-                key=f"input-{pid}",
-                label_visibility="collapsed",
+        selected_mode = st.radio(
+            "使用方式",
+            mode_options,
+            key=f"mode-{pid}",
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+
+        is_sub = "訂閱" in selected_mode
+
+        if is_sub and provider.get("has_subscription"):
+            # ── 訂閱制設定 ──
+            plans = provider["subscription_plans"]
+            plan_names = [f"{p['name']} — {p['desc']}" for p in plans]
+
+            current_idx = 0
+            if saved_plan:
+                for i, p in enumerate(plans):
+                    if p["id"] == saved_plan:
+                        current_idx = i
+                        break
+
+            selected_plan_str = st.selectbox(
+                "選擇你的方案",
+                plan_names,
+                index=current_idx,
+                key=f"plan-{pid}",
             )
+            selected_plan_idx = plan_names.index(selected_plan_str)
+            selected_plan = plans[selected_plan_idx]
 
-        with action_col2:
-            if st.button("💾 儲存", key=f"save-{pid}", use_container_width=True):
-                if not new_key.strip():
-                    st.error("❌ 請輸入 API Key")
-                else:
-                    cfg = _set_key(cfg, pid, new_key.strip())
+            s1, s2, _ = st.columns([1, 1, 3])
+            with s1:
+                if st.button("💾 儲存方案", key=f"save-sub-{pid}", type="primary", use_container_width=True):
+                    if "providers" not in cfg:
+                        cfg["providers"] = {}
+                    cfg["providers"][pid] = {
+                        "mode": "subscription",
+                        "plan": selected_plan["id"],
+                        "plan_name": selected_plan["name"],
+                    }
                     _save_config(cfg)
-                    st.success("✅ 已儲存")
+                    st.success(f"✅ 已設定為 {selected_plan['name']}")
                     st.rerun()
+            with s2:
+                if saved_mode == "subscription":
+                    if st.button("🗑️ 清除設定", key=f"del-sub-{pid}", use_container_width=True):
+                        cfg.get("providers", {}).pop(pid, None)
+                        _save_config(cfg)
+                        st.success("已清除")
+                        st.rerun()
 
-        with action_col3:
-            test_key = new_key.strip() or active_key
-            if st.button(
-                "🧪 測試連線",
-                key=f"test-{pid}",
-                use_container_width=True,
-                disabled=not test_key,
-            ):
-                with st.spinner("測試中..."):
-                    ok, msg = provider["test_fn"](test_key)
-                if ok:
-                    st.success(f"✅ {msg}")
-                else:
-                    st.error(f"❌ {msg}")
+        else:
+            # ── API Key 設定 ──
+            k1, k2, k3 = st.columns([3, 1, 1])
 
-        # 刪除 Key
-        if saved_key:
-            if st.button("🗑️ 移除已儲存的 Key", key=f"del-{pid}"):
-                cfg["api_keys"].pop(pid, None)
-                _save_config(cfg)
-                st.success("已移除")
-                st.rerun()
+            with k1:
+                new_key = st.text_input(
+                    f"輸入 {provider['name']} API Key",
+                    type="password",
+                    placeholder=f"{provider['key_prefix']}...",
+                    key=f"input-{pid}",
+                    label_visibility="collapsed",
+                )
+            with k2:
+                if st.button("💾 儲存", key=f"save-key-{pid}", type="primary", use_container_width=True):
+                    if not new_key.strip():
+                        st.error("❌ 請輸入 API Key")
+                    else:
+                        if "providers" not in cfg:
+                            cfg["providers"] = {}
+                        cfg["providers"][pid] = {
+                            "mode": "api_key",
+                            "api_key": new_key.strip(),
+                        }
+                        # 同時存到舊格式以維持相容
+                        if "api_keys" not in cfg:
+                            cfg["api_keys"] = {}
+                        cfg["api_keys"][pid] = new_key.strip()
+                        _save_config(cfg)
+                        st.success("✅ 已儲存")
+                        st.rerun()
+            with k3:
+                test_key = new_key.strip() or saved_key or env_key
+                if st.button("🧪 測試", key=f"test-{pid}", use_container_width=True, disabled=not test_key):
+                    with st.spinner("測試中..."):
+                        ok, msg = provider["test_fn"](test_key)
+                    if ok:
+                        st.success(f"✅ {msg}")
+                    else:
+                        st.error(f"❌ {msg}")
+
+            if saved_key:
+                if st.button("🗑️ 移除已儲存的 Key", key=f"del-key-{pid}"):
+                    cfg.get("providers", {}).pop(pid, None)
+                    cfg.get("api_keys", {}).pop(pid, None)
+                    _save_config(cfg)
+                    st.success("已移除")
+                    st.rerun()
 
 st.divider()
 
 # ── 模型詳細比較 ──────────────────────────────────────────
-with st.expander("📋 模型比較表", expanded=False):
+with st.expander("📋 全模型比較表", expanded=False):
     st.markdown("""
 | 模型 | 廠商 | 擅長 | 上下文 | 價格等級 |
 |------|------|------|--------|----------|
@@ -413,5 +471,4 @@ with st.expander("📋 模型比較表", expanded=False):
 | Codestral | Mistral | 程式碼專用 | 256K | 💰💰 |
 """)
 
-# ── 安全提示 ──────────────────────────────────────────────
-st.caption("🔒 API Key 儲存在本機 `config.json`，不會上傳到任何伺服器。建議將 `config.json` 加入 `.gitignore`。")
+st.caption("🔒 所有設定儲存在本機 `config.json`，不會上傳到任何伺服器。")
