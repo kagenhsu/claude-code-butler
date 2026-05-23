@@ -397,26 +397,126 @@ if st.session_state.uploaded_files_data:
                     st.caption(f"📄 **{fd['name']}**")
                     st.caption(f"{len(fd['text'])} 字元")
 
-# ── 送到 Claude Code ──────────────────────────────────────
+# ── 送出面板 ──────────────────────────────────────────────
 if st.session_state.send_to_cc is not None:
     content = st.session_state.send_to_cc
     with st.container(border=True):
-        st.markdown("### 🚀 送到 Claude Code 執行")
+        st.markdown("### 🚀 下一步：選擇要送到哪裡")
+        st.caption("在對話沙盒討論好的方案，可以送到以下工具繼續執行或深入規劃")
 
-        st.code(content, language="markdown")
+        tab_desktop, tab_vscode, tab_cc, tab_file = st.tabs([
+            "🖥️ Claude 桌面版",
+            "📝 VS Code",
+            "💻 Claude Code CLI",
+            "📥 儲存 / 下載",
+        ])
 
-        task_file = Path.home() / ".claude" / "task.md"
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("💾 存成任務檔案", type="primary", use_container_width=True):
-                task_file.write_text(content, encoding="utf-8")
-                st.success(f"✅ 已存到 `{task_file}`\n\n在 Claude Code 輸入：\n`請讀取 ~/.claude/task.md 並執行`")
-        with col2:
-            st.download_button("📥 下載 .md", content, file_name="task.md", mime="text/markdown", use_container_width=True)
-        with col3:
-            if st.button("關閉", key="close-cc", use_container_width=True):
-                st.session_state.send_to_cc = None
-                st.rerun()
+        with tab_desktop:
+            st.markdown("把對話內容送到 Claude 桌面版，進行更詳細的規劃和討論")
+
+            has_desktop = Path("/Applications/Claude.app").exists() or (Path.home() / "Applications" / "Claude.app").exists()
+
+            if has_desktop:
+                d1, d2 = st.columns(2)
+                with d1:
+                    if st.button("🖥️ 開啟 Claude 桌面版", type="primary", use_container_width=True):
+                        subprocess.Popen(["open", "-a", "Claude"])
+                        st.success("✅ 已開啟 Claude 桌面版，請手動貼上內容")
+                with d2:
+                    if st.button("📋 複製內容到剪貼簿", key="copy-desktop", use_container_width=True):
+                        subprocess.run(["pbcopy"], input=content.encode(), check=True)
+                        st.success("✅ 已複製！切換到 Claude 桌面版貼上即可")
+
+                st.divider()
+                st.markdown("**💡 推薦用法**")
+                st.markdown("""
+1. 點「開啟 Claude 桌面版」+ 「複製內容」
+2. 在桌面版貼上，用 Opus 做更詳細的規劃
+3. 規劃好後再回到 Claude Code 執行
+
+**桌面版適合：**
+- 需要更深入的分析和規劃
+- 想跟 Claude 來回討論多輪
+- 需要上傳大量參考資料
+- 使用 Cowork 功能協作
+""")
+            else:
+                st.warning("⚠️ 未偵測到 Claude 桌面版應用程式")
+                st.link_button("📥 下載 Claude 桌面版", "https://claude.ai/download", use_container_width=True)
+
+        with tab_vscode:
+            st.markdown("把方案送到 VS Code，使用 Claude Code 擴充套件在編輯器內執行")
+
+            has_vscode = shutil.which("code") is not None
+
+            if has_vscode:
+                v1, v2 = st.columns(2)
+                with v1:
+                    if st.button("📝 開啟 VS Code", type="primary", use_container_width=True):
+                        subprocess.Popen(["code", "."])
+                        st.success("✅ 已開啟 VS Code")
+                with v2:
+                    if st.button("💾 存成任務檔案 + 開啟 VS Code", use_container_width=True):
+                        task_file = Path.home() / ".claude" / "task.md"
+                        task_file.write_text(content, encoding="utf-8")
+                        subprocess.Popen(["code", str(task_file)])
+                        st.success("✅ 任務檔已存好，VS Code 已開啟")
+
+                st.divider()
+                st.markdown("**💡 在 VS Code 使用 Claude Code**")
+                st.markdown("""
+1. 開啟 VS Code 後，按 `Cmd+Shift+P`（macOS）或 `Ctrl+Shift+P`（Windows）
+2. 輸入 `Claude Code` 選擇啟動
+3. 貼上討論好的方案，Claude Code 會在編輯器內直接執行
+4. 可以即時看到檔案修改、預覽變更
+
+**VS Code 適合：**
+- 想一邊看程式碼一邊讓 Claude 修改
+- 需要即時預覽變更結果
+- 習慣在 IDE 裡工作
+""")
+            else:
+                st.warning("⚠️ 未偵測到 VS Code CLI 指令（`code`）")
+                st.link_button("📥 下載 VS Code", "https://code.visualstudio.com", use_container_width=True)
+
+        with tab_cc:
+            st.markdown("把方案送到 Claude Code CLI，在終端機裡直接執行任務")
+            task_file = Path.home() / ".claude" / "task.md"
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                if st.button("💾 存成任務檔案 → Claude Code 讀取", type="primary", use_container_width=True):
+                    task_file.write_text(content, encoding="utf-8")
+                    st.success("✅ 已存到 `~/.claude/task.md`")
+                    st.info("在 Claude Code 輸入：\n\n`請讀取 ~/.claude/task.md 並執行裡面的任務`")
+            with cc2:
+                safe = content.replace("'", "'\\''")
+                st.code(f"claude -p '{safe[:100]}...'", language="bash")
+                st.caption("複製上面的指令貼到終端機執行")
+
+            st.divider()
+            st.markdown("**💡 Claude Code CLI 適合：**")
+            st.markdown("""
+- 在終端機快速執行任務
+- 搭配 shell 腳本自動化
+- 不需要開啟 IDE
+""")
+
+        with tab_file:
+            st.markdown("儲存對話內容為檔案，方便之後參考")
+            f1, f2 = st.columns(2)
+            with f1:
+                st.download_button("📥 下載 Markdown", content, file_name=f"討論_{datetime.now().strftime('%Y%m%d_%H%M')}.md", mime="text/markdown", use_container_width=True)
+            with f2:
+                st.download_button("📥 下載純文字", content, file_name=f"討論_{datetime.now().strftime('%Y%m%d_%H%M')}.txt", mime="text/plain", use_container_width=True)
+
+        st.divider()
+        st.markdown("**📄 預覽內容**")
+        with st.expander("點開查看要送出的內容", expanded=False):
+            st.markdown(content)
+
+        if st.button("✖️ 關閉此面板", key="close-cc", use_container_width=True):
+            st.session_state.send_to_cc = None
+            st.rerun()
     st.divider()
 
 # ── 對話紀錄顯示 ──────────────────────────────────────────
@@ -440,14 +540,9 @@ for i, msg in enumerate(st.session_state.chat_messages):
 
         # AI 回應動作按鈕
         if msg["role"] == "assistant":
-            b1, b2, _, _ = st.columns([1, 1, 1, 3])
+            b1, b2, b3, b4 = st.columns([1, 1, 1, 1])
             with b1:
-                if st.button("🚀 送到 Claude Code", key=f"cc-{i}", use_container_width=True):
-                    text = msg["display_content"] if msg.get("display_content") else (msg["content"] if isinstance(msg["content"], str) else "")
-                    st.session_state.send_to_cc = text
-                    st.rerun()
-            with b2:
-                if st.button("📋 複製全部對話", key=f"cp-{i}", use_container_width=True):
+                if st.button("🚀 下一步", key=f"next-{i}", type="primary", use_container_width=True):
                     full = ""
                     for m in st.session_state.chat_messages[:i+1]:
                         role = "使用者" if m["role"] == "user" else "AI"
@@ -455,6 +550,31 @@ for i, msg in enumerate(st.session_state.chat_messages):
                         full += f"## {role}\n{text}\n\n"
                     st.session_state.send_to_cc = full
                     st.rerun()
+            with b2:
+                if st.button("🖥️ 桌面版", key=f"desk-{i}", use_container_width=True):
+                    text = msg["display_content"] if msg.get("display_content") else (msg["content"] if isinstance(msg["content"], str) else "")
+                    try:
+                        subprocess.run(["pbcopy"], input=text.encode(), check=True)
+                        subprocess.Popen(["open", "-a", "Claude"])
+                        st.success("✅ 已複製並開啟 Claude 桌面版")
+                    except Exception:
+                        st.session_state.send_to_cc = text
+                        st.rerun()
+            with b3:
+                if st.button("📝 VS Code", key=f"vsc-{i}", use_container_width=True):
+                    text = msg["display_content"] if msg.get("display_content") else (msg["content"] if isinstance(msg["content"], str) else "")
+                    task_file = Path.home() / ".claude" / "task.md"
+                    task_file.write_text(text, encoding="utf-8")
+                    subprocess.Popen(["code", str(task_file)])
+                    st.success("✅ 已存成任務檔並開啟 VS Code")
+            with b4:
+                if st.button("📋 複製", key=f"cp-{i}", use_container_width=True):
+                    text = msg["display_content"] if msg.get("display_content") else (msg["content"] if isinstance(msg["content"], str) else "")
+                    try:
+                        subprocess.run(["pbcopy"], input=text.encode(), check=True)
+                        st.success("✅ 已複製")
+                    except Exception:
+                        st.info("請手動複製上方內容")
 
 # ── 輸入區 ──────────────────────────────────────────────
 prompt = st.chat_input(f"跟 {current_model['name']} 討論你的想法...")
