@@ -312,7 +312,28 @@ role_presets = {
     "自訂...": "__custom__",
 }
 
-top1, top2, top3, top4, top5, top6 = st.columns([3, 1, 1, 1, 1, 1])
+if "session_usage" not in st.session_state:
+    st.session_state.session_usage = {"calls": 0, "total_time": 0.0, "errors": 0}
+usage = st.session_state.session_usage
+msg_count = len([m for m in st.session_state.chat_messages if m["role"] == "user"])
+
+# 訂閱制流量限制參考
+plan_info = ""
+anthropic_plan = providers_cfg.get("anthropic", {})
+if anthropic_plan.get("mode") == "subscription":
+    plan_name = anthropic_plan.get("plan_name", "")
+    if "Max 20x" in plan_name:
+        plan_info = "Max 20x"
+    elif "Max 5x" in plan_name:
+        plan_info = "Max 5x"
+    elif "Pro" in plan_name:
+        plan_info = "Pro"
+    else:
+        plan_info = "Free"
+elif shutil.which("claude"):
+    plan_info = "訂閱制"
+
+top1, top2, top3, top4 = st.columns([4, 1, 1, 1])
 
 with top1:
     selected_idx = st.selectbox(
@@ -324,30 +345,17 @@ with top1:
     current_model = AVAILABLE_MODELS[selected_idx]
 
 with top2:
-    with st.popover("⚙️ 設定", use_container_width=True):
-        max_tokens = st.slider("回應長度", 256, 4096, 2048, 256)
-        st.divider()
-        st.markdown("**🔀 比較模式**")
-        compare_mode = st.toggle("同時送給多個模型", value=False)
-        compare_models = []
-        if compare_mode:
-            compare_indices = st.multiselect("選擇比較模型", range(len(AVAILABLE_MODELS)), format_func=lambda i: model_names[i], max_selections=3)
-            compare_models = [AVAILABLE_MODELS[i] for i in compare_indices]
-
-with top4:
     with st.popover("📚 紀錄", use_container_width=True):
         st.markdown("**對話紀錄**")
         if st.session_state.chat_messages:
             if st.button("💾 儲存目前對話", use_container_width=True, type="primary"):
-                cid = _save_current_chat()
-                st.success(f"✅ 已儲存")
+                _save_current_chat()
+                st.success("✅ 已儲存")
             st.divider()
-
         if st.session_state.saved_chats:
             for cid, cdata in list(st.session_state.saved_chats.items())[:10]:
                 title = cdata.get("title", cid)
                 ts = cdata.get("timestamp", "")[:10]
-                msg_count = len(cdata.get("messages", []))
                 c1, c2 = st.columns([3, 1])
                 with c1:
                     if st.button(f"💬 {title}", key=f"load-{cid}", use_container_width=True):
@@ -357,11 +365,10 @@ with top4:
                     if st.button("🗑️", key=f"del-chat-{cid}"):
                         _delete_chat(cid)
                         st.rerun()
-                st.caption(f"{ts} · {msg_count} 則訊息")
         else:
             st.caption("還沒有儲存的對話")
 
-with top5:
+with top3:
     if st.button("🗑️ 新對話", use_container_width=True):
         if st.session_state.chat_messages:
             _save_current_chat()
@@ -369,64 +376,28 @@ with top5:
         st.session_state.send_to_cc = None
         st.session_state.uploaded_files_data = []
         st.session_state.current_chat_id = None
+        st.session_state.session_usage = {"calls": 0, "total_time": 0.0, "errors": 0}
         st.rerun()
 
-with top6:
-    with st.popover("❓", use_container_width=True):
-        st.markdown("""
-**對話沙盒**
+with top4:
+    with st.popover("⚙️", use_container_width=True):
+        max_tokens = st.slider("回應長度", 256, 4096, 2048, 256)
+        st.divider()
+        st.markdown("**🔀 比較模式**")
+        compare_mode = st.toggle("同時送給多個模型", value=False)
+        compare_models = []
+        if compare_mode:
+            compare_indices = st.multiselect("選擇比較模型", range(len(AVAILABLE_MODELS)), format_func=lambda i: model_names[i], max_selections=3)
+            compare_models = [AVAILABLE_MODELS[i] for i in compare_indices]
 
-跟 AI 討論想法，確認好方案後按「🚀 送到 Claude Code」去執行。
-
-**工作流程**
-```
-討論想法 → 確認方案 → 送到 Claude Code
-```
-
-**為什麼不直接在 Claude Code 討論？**
-- 對話沙盒不會改檔案，純聊天無風險
-- 可用便宜模型討論，省下主力模型額度
-- 可上傳圖片/檔案輔助討論
-""")
-
-# ── 使用量狀態列 ──────────────────────────────────────────
-if "session_usage" not in st.session_state:
-    st.session_state.session_usage = {"calls": 0, "total_time": 0.0, "errors": 0}
-
-usage = st.session_state.session_usage
-msg_count = len([m for m in st.session_state.chat_messages if m["role"] == "user"])
-
-# 訂閱制流量限制參考
-plan_info = ""
-anthropic_plan = providers_cfg.get("anthropic", {})
-if anthropic_plan.get("mode") == "subscription":
-    plan_name = anthropic_plan.get("plan_name", "")
-    if "Max 20x" in plan_name:
-        plan_info = "Max 20x — 20 倍速率上限"
-    elif "Max 5x" in plan_name:
-        plan_info = "Max 5x — 5 倍速率上限"
-    elif "Pro" in plan_name:
-        plan_info = "Pro — 5 倍速率上限"
-    else:
-        plan_info = "Free — 基礎速率上限"
-elif shutil.which("claude"):
-    plan_info = "訂閱制（依方案有速率限制）"
-
-with st.container(border=True):
-    u1, u2, u3, u4 = st.columns(4)
-    with u1:
-        st.caption(f"💬 對話：**{msg_count}** 則")
-    with u2:
-        st.caption(f"📡 API 呼叫：**{usage['calls']}** 次")
-    with u3:
-        st.caption(f"⏱️ 總耗時：**{usage['total_time']:.1f}s**")
-    with u4:
-        if plan_info:
-            st.caption(f"💳 {plan_info}")
-        elif usage["errors"] > 0:
-            st.caption(f"⚠️ 錯誤：**{usage['errors']}** 次")
-        else:
-            st.caption(f"🤖 {current_model['name']}")
+# 狀態列（一行文字，不用框）
+status_parts = [f"💬 {msg_count} 則"]
+if usage["calls"]:
+    status_parts.append(f"📡 {usage['calls']} 次呼叫")
+    status_parts.append(f"⏱️ {usage['total_time']:.1f}s")
+if plan_info:
+    status_parts.append(f"💳 {plan_info}")
+st.caption("　".join(status_parts))
 
 # ── 送出面板 ──────────────────────────────────────────────
 if st.session_state.send_to_cc is not None:
@@ -607,45 +578,42 @@ for i, msg in enumerate(st.session_state.chat_messages):
                     except Exception:
                         st.info("請手動複製上方內容")
 
-# ── 輸入區上方：角色 + 附件 ──────────────────────────────
-inp1, inp2, inp3 = st.columns([2, 2, 1])
-with inp1:
-    selected_role = st.selectbox("🎭 角色", list(role_presets.keys()), key="role-preset", label_visibility="collapsed")
-    if role_presets[selected_role] == "__custom__":
-        system_prompt = st.text_input("自訂指令", key="custom-sys", placeholder="你是一個...", label_visibility="collapsed")
-    else:
-        system_prompt = role_presets[selected_role]
+# ── 輸入區上方：角色 + 附件（摺疊式） ──────────────────────
+with st.expander("🎭 角色 ／ 📎 附件", expanded=bool(st.session_state.uploaded_files_data)):
+    inp1, inp2 = st.columns(2)
+    with inp1:
+        selected_role = st.selectbox("🎭 角色指令", list(role_presets.keys()), key="role-preset")
+        if role_presets[selected_role] == "__custom__":
+            system_prompt = st.text_input("自訂指令", key="custom-sys", placeholder="你是一個...")
+        else:
+            system_prompt = role_presets[selected_role]
+    with inp2:
+        uploaded = st.file_uploader(
+            "📎 上傳檔案",
+            type=["png", "jpg", "jpeg", "gif", "webp", "txt", "md", "py", "js", "ts", "json", "csv", "html", "css"],
+            accept_multiple_files=True,
+            key="file-upload",
+        )
+        if uploaded:
+            st.session_state.uploaded_files_data = []
+            for f in uploaded:
+                file_data = {"name": f.name, "type": f.type, "size": f.size}
+                if f.type and f.type.startswith("image/"):
+                    file_data["kind"] = "image"
+                    file_data["base64"] = base64.b64encode(f.read()).decode()
+                    file_data["media_type"] = f.type
+                else:
+                    file_data["kind"] = "text"
+                    try:
+                        file_data["text"] = f.read().decode("utf-8")
+                    except Exception:
+                        file_data["text"] = f"（無法讀取 {f.name} 的內容）"
+                st.session_state.uploaded_files_data.append(file_data)
 
-with inp2:
-    uploaded = st.file_uploader(
-        "📎 附件",
-        type=["png", "jpg", "jpeg", "gif", "webp", "txt", "md", "py", "js", "ts", "json", "csv", "html", "css"],
-        accept_multiple_files=True,
-        key="file-upload",
-        label_visibility="collapsed",
-    )
-    if uploaded:
-        st.session_state.uploaded_files_data = []
-        for f in uploaded:
-            file_data = {"name": f.name, "type": f.type, "size": f.size}
-            if f.type and f.type.startswith("image/"):
-                file_data["kind"] = "image"
-                file_data["base64"] = base64.b64encode(f.read()).decode()
-                file_data["media_type"] = f.type
-            else:
-                file_data["kind"] = "text"
-                try:
-                    file_data["text"] = f.read().decode("utf-8")
-                except Exception:
-                    file_data["text"] = f"（無法讀取 {f.name} 的內容）"
-            st.session_state.uploaded_files_data.append(file_data)
-
-with inp3:
+    # 顯示已附加的檔案
     if st.session_state.uploaded_files_data:
-        names = ", ".join(fd["name"] for fd in st.session_state.uploaded_files_data)
-        st.caption(f"📎 {names}")
-    elif system_prompt:
-        st.caption(f"🎭 {selected_role}")
+        file_names = " · ".join(f"{'🖼️' if fd['kind'] == 'image' else '📄'} {fd['name']}" for fd in st.session_state.uploaded_files_data)
+        st.caption(f"已附加：{file_names}")
 
 # ── 輸入區 ──────────────────────────────────────────────
 prompt = st.chat_input(f"跟 {current_model['name']} 討論你的想法...")
