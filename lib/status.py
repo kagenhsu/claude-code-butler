@@ -55,31 +55,82 @@ def detect_status() -> SystemStatus:
     if not s.claude_model and s.claude_code_installed:
         s.claude_model = "claude-opus-4-7"
 
+    # 讀取管家設定檔的 API Key
+    config_keys = {}
+    try:
+        from .paths import config_file
+        cf = config_file()
+        if cf.is_file():
+            config_keys = json.load(open(cf, encoding="utf-8")).get("api_keys", {})
+    except Exception:
+        pass
+
     # 雲端模型偵測
     cloud = []
 
-    # Anthropic (Claude)
-    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY")) or s.claude_code_installed
+    has_anthropic = bool(
+        os.environ.get("ANTHROPIC_API_KEY")
+        or config_keys.get("anthropic")
+        or s.claude_code_installed
+    )
     cloud.append(CloudModel(
         name="Claude (Anthropic)",
         status="已連接" if has_anthropic else "未設定",
     ))
 
-    # OpenAI
-    has_openai = bool(os.environ.get("OPENAI_API_KEY"))
+    has_openai = bool(
+        os.environ.get("OPENAI_API_KEY")
+        or config_keys.get("openai")
+    )
     cloud.append(CloudModel(
         name="OpenAI",
         status="已連接" if has_openai else "未設定",
     ))
 
-    # Google Gemini
     has_gemini = bool(
         os.environ.get("GOOGLE_API_KEY")
         or os.environ.get("GEMINI_API_KEY")
+        or config_keys.get("gemini")
     )
     cloud.append(CloudModel(
         name="Google Gemini",
         status="已連接" if has_gemini else "未設定",
+    ))
+
+    has_minimax = bool(
+        os.environ.get("MINIMAX_API_KEY")
+        or config_keys.get("minimax")
+    )
+    cloud.append(CloudModel(
+        name="MiniMax",
+        status="已連接" if has_minimax else "未設定",
+    ))
+
+    has_deepseek = bool(
+        os.environ.get("DEEPSEEK_API_KEY")
+        or config_keys.get("deepseek")
+    )
+    cloud.append(CloudModel(
+        name="DeepSeek",
+        status="已連接" if has_deepseek else "未設定",
+    ))
+
+    has_xai = bool(
+        os.environ.get("XAI_API_KEY")
+        or config_keys.get("xai")
+    )
+    cloud.append(CloudModel(
+        name="xAI (Grok)",
+        status="已連接" if has_xai else "未設定",
+    ))
+
+    has_mistral = bool(
+        os.environ.get("MISTRAL_API_KEY")
+        or config_keys.get("mistral")
+    )
+    cloud.append(CloudModel(
+        name="Mistral",
+        status="已連接" if has_mistral else "未設定",
     ))
 
     s.cloud_models = cloud
