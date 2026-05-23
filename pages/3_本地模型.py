@@ -286,6 +286,187 @@ if lms_path:
 
         st.caption("🔗 [LM Studio 官網 →](https://lmstudio.ai)　｜　[使用文件 →](https://lmstudio.ai/docs)")
 
+    # ── CC Switch：Claude Code 切換 AI 後端 ──
+    st.divider()
+    st.subheader("🔀 CC Switch — 一鍵切換 Claude Code 的 AI 後端")
+    st.caption("用圖形介面切換 Claude Code 使用的模型：本地模型、DeepSeek、OpenRouter 等")
+
+    with st.expander("❓ CC Switch 是什麼？", expanded=False):
+        st.markdown("""
+### 一句話解釋
+
+[CC Switch](https://github.com/farion1231/cc-switch) 是一個**獨立的桌面應用程式**，讓你用圖形介面一鍵切換 Claude Code 的 AI 後端。
+
+### 支援的後端
+
+| 後端 | 說明 |
+|------|------|
+| 🏠 **LM Studio / Ollama** | 本地模型，完全離線免費 |
+| 🔷 **DeepSeek** | 高性價比雲端模型 |
+| 🌐 **OpenRouter** | 多模型聚合平台 |
+| 🟢 **OpenAI** | GPT 系列模型 |
+| ☁️ **Anthropic** | 切換回官方 Claude |
+
+### 為什麼要用？
+
+- **不用記指令** — 圖形介面點一下就切換
+- **不用改設定檔** — CC Switch 自動幫你寫入 `~/.claude/settings.json`
+- **隨時切回來** — 一鍵切換回官方 Claude
+
+### 也有 CLI 版本
+
+不想裝桌面版的話，也有 [cc-switch-cli](https://github.com/saladday/cc-switch-cli)，在終端機操作。
+""")
+
+    # 偵測 CC Switch 是否已安裝
+    cc_switch_installed = False
+    cc_switch_path = ""
+
+    # macOS: 檢查 Applications
+    mac_app = Path("/Applications/CC Switch.app")
+    mac_app2 = Path.home() / "Applications" / "CC Switch.app"
+    if mac_app.exists():
+        cc_switch_installed = True
+        cc_switch_path = str(mac_app)
+    elif mac_app2.exists():
+        cc_switch_installed = True
+        cc_switch_path = str(mac_app2)
+
+    # CLI 版本
+    cc_cli = shutil.which("cc-switch") or shutil.which("cc-switch-cli")
+    if cc_cli:
+        cc_switch_installed = True
+        cc_switch_path = cc_cli
+
+    with st.container(border=True):
+        h1, h2 = st.columns([3, 1])
+        with h1:
+            if cc_switch_installed:
+                st.markdown("### 🔀 CC Switch ✅")
+                st.caption(f"已安裝：`{cc_switch_path}`")
+            else:
+                st.markdown("### 🔀 CC Switch ⬜")
+                st.caption("尚未安裝")
+        with h2:
+            if cc_switch_installed:
+                st.success("已安裝", icon="✅")
+            else:
+                st.info("未安裝", icon="⬜")
+
+        # 安裝 / 開啟按鈕
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if not cc_switch_installed:
+                if st.button("📥 自動安裝 CC Switch", key="cc-install", type="primary", use_container_width=True):
+                    with st.spinner("正在下載並安裝 CC Switch..."):
+                        import platform as pf
+                        system = pf.system()
+                        arch = pf.machine()
+                        if system == "Darwin":
+                            if arch == "arm64":
+                                dmg_url = "https://github.com/farion1231/cc-switch/releases/latest/download/CC.Switch-aarch64.dmg"
+                            else:
+                                dmg_url = "https://github.com/farion1231/cc-switch/releases/latest/download/CC.Switch-x64.dmg"
+                            dl_path = "/tmp/cc-switch.dmg"
+                            result = _run(["curl", "-L", "-o", dl_path, dmg_url], timeout=120)
+                            if result is not None:
+                                _run(["hdiutil", "attach", dl_path, "-nobrowse", "-quiet"], timeout=30)
+                                _run(["cp", "-R", "/Volumes/CC Switch/CC Switch.app", "/Applications/"], timeout=30)
+                                _run(["hdiutil", "detach", "/Volumes/CC Switch", "-quiet"], timeout=15)
+                                _run(["rm", dl_path], timeout=5)
+                                st.success("✅ CC Switch 已安裝到 Applications！")
+                                st.rerun()
+                            else:
+                                st.error("下載失敗，請手動到 GitHub 下載")
+                        else:
+                            st.info("請到 GitHub 下載對應平台的安裝檔")
+            else:
+                st.button("✅ 已安裝", key="cc-installed", disabled=True, use_container_width=True)
+
+        with b2:
+            if cc_switch_installed:
+                if st.button("🚀 開啟 CC Switch", key="cc-open", type="primary", use_container_width=True):
+                    if cc_switch_path.endswith(".app"):
+                        _run(["open", cc_switch_path])
+                        st.success("已開啟 CC Switch")
+                    elif cc_cli:
+                        _run([cc_cli])
+                        st.success("已啟動 CC Switch CLI")
+
+        with b3:
+            st.link_button("📖 GitHub", "https://github.com/farion1231/cc-switch", use_container_width=True)
+
+        st.caption("🔗 [CC Switch GitHub](https://github.com/farion1231/cc-switch) ｜ [CLI 版本](https://github.com/saladday/cc-switch-cli) ｜ [使用教學](https://ofox.ai/blog/claude-code-switch-tutorial-2026/)")
+
+    # ── 手動切換（不裝 CC Switch 也能用）──
+    with st.container(border=True):
+        st.markdown("### ⚙️ 手動切換（不需要 CC Switch）")
+        st.caption("如果不想安裝 CC Switch，也可以在這裡直接切換 Claude Code 的後端")
+
+        # 偵測目前狀態
+        import json as _json
+        claude_settings_path = Path.home() / ".claude" / "settings.json"
+        try:
+            cs = _json.loads(claude_settings_path.read_text()) if claude_settings_path.is_file() else {}
+            current_base = cs.get("env", {}).get("ANTHROPIC_BASE_URL", "")
+        except Exception:
+            cs = {}
+            current_base = ""
+
+        if current_base:
+            st.warning(f"⚡ 目前 Claude Code 指向：`{current_base}`")
+        else:
+            st.info("☁️ 目前 Claude Code 使用官方 Anthropic API")
+
+        # 快速切換按鈕
+        switch_options = {
+            "☁️ Anthropic（官方）": {"url": "", "key": ""},
+            "🎬 LM Studio（本地）": {"url": "http://localhost:1234/v1", "key": "lm-studio"},
+            "🦙 Ollama（本地）": {"url": "http://localhost:11434/v1", "key": "ollama"},
+            "🔷 DeepSeek": {"url": "https://api.deepseek.com", "key": ""},
+            "🟢 OpenAI": {"url": "https://api.openai.com/v1", "key": ""},
+            "🌐 OpenRouter": {"url": "https://openrouter.ai/api/v1", "key": ""},
+        }
+
+        selected_backend = st.radio(
+            "選擇後端",
+            list(switch_options.keys()),
+            horizontal=True,
+            key="manual-switch",
+            label_visibility="collapsed",
+        )
+
+        backend = switch_options[selected_backend]
+
+        if "本地" not in selected_backend and "官方" not in selected_backend and backend["url"]:
+            api_key_input = st.text_input(
+                "API Key（該後端的）",
+                type="password",
+                key="manual-switch-key",
+                placeholder="輸入該服務的 API Key...",
+            )
+        else:
+            api_key_input = backend["key"]
+
+        if st.button("🔀 套用切換", key="manual-apply", type="primary"):
+            try:
+                settings = _json.loads(claude_settings_path.read_text()) if claude_settings_path.is_file() else {}
+                settings["env"] = settings.get("env", {})
+                if backend["url"]:
+                    settings["env"]["ANTHROPIC_BASE_URL"] = backend["url"]
+                    settings["env"]["ANTHROPIC_API_KEY"] = api_key_input or backend["key"] or "placeholder"
+                else:
+                    settings["env"].pop("ANTHROPIC_BASE_URL", None)
+                    settings["env"].pop("ANTHROPIC_API_KEY", None)
+                claude_settings_path.write_text(_json.dumps(settings, indent=2, ensure_ascii=False))
+                if backend["url"]:
+                    st.success(f"✅ 已切換到 {selected_backend}！重啟 Claude Code 生效")
+                else:
+                    st.success("✅ 已切換回官方 Anthropic！重啟 Claude Code 生效")
+                st.rerun()
+            except Exception as e:
+                st.error(f"切換失敗：{e}")
+
     st.divider()
 
 # ── 推薦模型 ──────────────────────────────────────────────
