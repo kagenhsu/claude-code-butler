@@ -183,6 +183,13 @@ PROVIDERS = [
         "key_prefix": "sk-ant-",
         "test_fn": _test_anthropic,
         "has_subscription": True,
+        "links": {
+            "官網": "https://www.anthropic.com",
+            "訂閱方案": "https://claude.ai/upgrade",
+            "API Key 申請": "https://console.anthropic.com/settings/keys",
+            "API 定價": "https://www.anthropic.com/pricing",
+            "API 文件": "https://docs.anthropic.com",
+        },
         "subscription_plans": [
             {"id": "free",    "name": "Free（免費）",       "desc": "Sonnet 模型，基礎速率", "price": "免費"},
             {"id": "pro",     "name": "Pro（$20/月）",      "desc": "Sonnet + 有限 Opus，5 倍速率", "price": "$20/月"},
@@ -203,6 +210,13 @@ PROVIDERS = [
         "key_prefix": "sk-",
         "test_fn": _test_openai,
         "has_subscription": True,
+        "links": {
+            "官網": "https://openai.com",
+            "訂閱方案": "https://chatgpt.com/#pricing",
+            "API Key 申請": "https://platform.openai.com/api-keys",
+            "API 定價": "https://openai.com/api/pricing",
+            "API 文件": "https://platform.openai.com/docs",
+        },
         "subscription_plans": [
             {"id": "free",    "name": "Free（免費）",       "desc": "GPT-4o mini，有限額度", "price": "免費"},
             {"id": "plus",    "name": "Plus（$20/月）",     "desc": "GPT-4o + o3-mini", "price": "$20/月"},
@@ -222,6 +236,13 @@ PROVIDERS = [
         "key_prefix": "AI",
         "test_fn": _test_gemini,
         "has_subscription": True,
+        "links": {
+            "官網": "https://gemini.google.com",
+            "訂閱方案": "https://one.google.com/about/ai-premium",
+            "API Key 申請": "https://aistudio.google.com/apikey",
+            "API 定價": "https://ai.google.dev/pricing",
+            "API 文件": "https://ai.google.dev/docs",
+        },
         "subscription_plans": [
             {"id": "free",    "name": "Free（免費）",             "desc": "Gemini Flash，有限額度", "price": "免費"},
             {"id": "advanced","name": "Google One AI Premium（$20/月）", "desc": "Gemini 2.5 Pro 完整存取", "price": "$20/月"},
@@ -239,6 +260,14 @@ PROVIDERS = [
         "key_prefix": "eyJ",
         "test_fn": _test_minimax,
         "has_subscription": True,
+        "links": {
+            "官網（國際）": "https://hailuoai.com",
+            "官網（中國）": "https://www.minimaxi.com",
+            "訂閱方案": "https://hailuoai.com/pricing",
+            "API Key 申請": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+            "API 定價": "https://platform.minimaxi.com/document/Price",
+            "API 文件": "https://platform.minimaxi.com/document/Guides",
+        },
         "subscription_plans": [
             {"id": "free",    "name": "Free（免費）",         "desc": "基礎額度，每日有限制", "price": "免費"},
             {"id": "pro",     "name": "Hailuo Pro（$9.99/月）","desc": "進階存取 + 更高額度", "price": "$9.99/月"},
@@ -258,6 +287,13 @@ PROVIDERS = [
         "key_prefix": "sk-",
         "test_fn": _test_deepseek,
         "has_subscription": True,
+        "links": {
+            "官網": "https://www.deepseek.com",
+            "對話介面": "https://chat.deepseek.com",
+            "API Key 申請": "https://platform.deepseek.com/api_keys",
+            "API 定價": "https://platform.deepseek.com/api-docs/pricing",
+            "API 文件": "https://platform.deepseek.com/api-docs",
+        },
         "subscription_plans": [
             {"id": "free",  "name": "Free（免費）",         "desc": "DeepSeek 網頁版免費使用", "price": "免費"},
             {"id": "pro",   "name": "DeepSeek Pro（¥9.9/月）","desc": "更高額度 + 優先回應", "price": "¥9.9/月"},
@@ -275,6 +311,14 @@ PROVIDERS = [
         "key_prefix": "xai-",
         "test_fn": _test_xai,
         "has_subscription": True,
+        "links": {
+            "官網": "https://x.ai",
+            "對話介面": "https://grok.com",
+            "訂閱方案": "https://grok.com/pricing",
+            "API Key 申請": "https://console.x.ai",
+            "API 定價": "https://docs.x.ai/docs/pricing",
+            "API 文件": "https://docs.x.ai",
+        },
         "subscription_plans": [
             {"id": "free",      "name": "Free（免費）",         "desc": "Grok 基礎存取", "price": "免費"},
             {"id": "premium",   "name": "Premium（$8/月）",    "desc": "Grok 進階存取", "price": "$8/月"},
@@ -293,6 +337,14 @@ PROVIDERS = [
         "key_prefix": "",
         "test_fn": _test_mistral,
         "has_subscription": True,
+        "links": {
+            "官網": "https://mistral.ai",
+            "對話介面": "https://chat.mistral.ai",
+            "訂閱方案": "https://mistral.ai/pricing",
+            "API Key 申請": "https://console.mistral.ai/api-keys",
+            "API 定價": "https://mistral.ai/pricing",
+            "API 文件": "https://docs.mistral.ai",
+        },
         "subscription_plans": [
             {"id": "free", "name": "Free（免費）", "desc": "基礎模型存取", "price": "免費"},
             {"id": "pro",  "name": "Le Chat Pro（$10/月）", "desc": "所有模型完整存取", "price": "$10/月"},
@@ -349,6 +401,12 @@ for provider in PROVIDERS:
         # 可用模型
         model_text = " · ".join([f"`{m[0]}`" for m in provider["models"]])
         st.caption(f"可用模型：{model_text}")
+
+        # 快速連結
+        links = provider.get("links", {})
+        if links:
+            link_parts = [f"[{label}]({url})" for label, url in links.items()]
+            st.caption("🔗 " + " ｜ ".join(link_parts))
 
         # ── 設定區域 ──
         mode_options = []
