@@ -80,11 +80,20 @@ hr {
     font-weight: 600;
 }
 
-/* 隱藏 Deploy 按鈕和 Streamlit 頁尾 */
-[data-testid="stMainMenu"] { visibility: visible; }
-.stDeployButton, [data-testid="stDeployButton"],
-header [data-testid="stToolbar"] button[kind="header"],
-footer, .reportview-container .main footer { display: none !important; }
+/* 隱藏 Deploy 按鈕、選單、頁尾 */
+.stDeployButton,
+[data-testid="stDeployButton"],
+#MainMenu,
+[data-testid="stMainMenu"],
+header [data-testid="stToolbar"],
+footer,
+.reportview-container .main footer,
+header > div:first-child {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
 
 /* Streamlit 頂部狀態列中文化 */
 .stStatusWidget [data-testid="manage-app-button"]::after {
