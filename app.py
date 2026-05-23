@@ -7,8 +7,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from pathlib import Path
+
 from lib.paths import claude_dir, user_skills_dir
 from lib.skills import list_skills
+from lib.status import detect_status
+
+STYLE_CSS = (Path(__file__).parent / "assets" / "style.css").read_text()
 
 st.set_page_config(
     page_title="Claude Code 管家",
@@ -16,6 +21,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+st.markdown(f"<style>{STYLE_CSS}</style>", unsafe_allow_html=True)
 
 # ── 側邊欄：新手指南 ──────────────────────────────────────
 with st.sidebar:
@@ -46,7 +53,9 @@ with st.sidebar:
 st.title("🧠 Claude Code 管家")
 st.caption("你的 AI 助手管理中心 — 管理 Skills、雲端與本地大語言模型")
 
-# 第一次使用引導
+# 偵測系統狀態
+status = detect_status()
+
 try:
     skills = list_skills()
     skill_count = len(skills)
@@ -61,7 +70,9 @@ if skill_count == 0:
 
 # ── 狀態總覽 ──────────────────────────────────────────────
 st.subheader("📊 狀態總覽")
-st.caption("這 5 個區塊顯示各功能目前的數量。Hover ❓ 看說明。")
+
+cloud_connected = sum(1 for m in status.cloud_models if m.status == "已連接")
+cloud_total = len(status.cloud_models)
 
 col1, col2, col3 = st.columns(3)
 col4, col5, col6 = st.columns(3)
@@ -69,15 +80,47 @@ col4, col5, col6 = st.columns(3)
 with col1:
     st.metric("📂 Skills", skill_count, help="你建立的 Claude Code skill 數量（位置：~/.claude/skills/）")
 with col2:
-    st.metric("🤖 雲端模型", "—", help="已連接的雲端 LLM 數量（v2 才會啟用）")
+    st.metric(
+        "🤖 雲端模型",
+        f"{cloud_connected} / {cloud_total}",
+        help="已連接的雲端 LLM 數量",
+    )
 with col3:
-    st.metric("💻 本地模型", "—", help="已安裝的本地 LLM 數量（v2 才會啟用）")
+    st.metric(
+        "💻 本地模型",
+        status.local_model_count,
+        help="已安裝的本地 LLM 數量（透過 Ollama 偵測）",
+    )
 with col4:
     st.metric("💬 對話", "—", help="今日對話次數（v2 才會啟用）")
 with col5:
     st.metric("📱 通訊軟體", "—", help="連接的 Bot 數量，例如 LINE Bot、Telegram Bot（v2 才會啟用）")
 with col6:
     st.metric("🤖 自動化任務", "—", help="排程任務 + 執行中 agent 數量（v2 才會啟用）")
+
+# ── Claude Code 資訊 ──────────────────────────────────────
+with st.container(border=True):
+    cc1, cc2, cc3 = st.columns(3)
+    with cc1:
+        if status.claude_code_installed:
+            st.markdown(f"✅ **Claude Code CLI**：`{status.claude_code_version}`")
+        else:
+            st.markdown("❌ **Claude Code CLI**：未安裝")
+    with cc2:
+        if status.claude_model:
+            model_display = status.claude_model.replace("claude-", "Claude ").replace("-", " ").title()
+            st.markdown(f"🧠 **目前模型**：`{status.claude_model}`")
+        else:
+            st.markdown("🧠 **目前模型**：未偵測到")
+    with cc3:
+        labels = [f"{'✅' if m.status == '已連接' else '⬜'} {m.name}" for m in status.cloud_models]
+        st.markdown("**雲端連線**：" + "　".join(labels))
+
+# ── 本地模型清單 ──
+if status.local_models:
+    with st.expander(f"💻 本地模型清單（{status.local_model_count} 個）", expanded=False):
+        for m in status.local_models:
+            st.write(f"- `{m}`")
 
 st.divider()
 

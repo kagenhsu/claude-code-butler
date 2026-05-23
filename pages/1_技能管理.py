@@ -1,5 +1,7 @@
-"""📂 Skills 管理 — 列表 / 新增 / 編輯 / 刪除"""
+"""📂 Skills 管理 — 列表 / 新增 / 編輯 / 刪除 / 從 GitHub 安裝"""
 from __future__ import annotations
+
+from pathlib import Path
 
 import streamlit as st
 
@@ -12,9 +14,14 @@ from lib.skills import (
     validate_name,
 )
 from lib.templates import SKILL_TEMPLATES, get_template
+from lib.github_skill import fetch_skill_from_github
 
-st.set_page_config(page_title="Skills | AI Hub", page_icon="📂", layout="wide")
-st.title("📂 Skills 管理")
+st.set_page_config(page_title="技能管理 | Claude Code 管家", page_icon="📂", layout="wide")
+
+_css = (Path(__file__).parent.parent / "assets" / "style.css").read_text()
+st.markdown(f"<style>{_css}</style>", unsafe_allow_html=True)
+
+st.title("📂 技能管理")
 
 # ── 頁面說明（新手必看） ──────────────────────────────────
 with st.expander("❓ 什麼是 Skill？我要怎麼用？", expanded=False):
@@ -47,6 +54,8 @@ if "delete_target" not in st.session_state:
     st.session_state.delete_target = None
 if "prefill" not in st.session_state:
     st.session_state.prefill = None
+if "github_result" not in st.session_state:
+    st.session_state.github_result = None
 
 
 def _switch_to(target: str | None, prefill: dict | None = None) -> None:
@@ -57,22 +66,159 @@ def _switch_to(target: str | None, prefill: dict | None = None) -> None:
 
 
 # ── 工具列 ──────────────────────────────────────────────
-col_l, col_r1, col_r2 = st.columns([4, 1, 1])
-with col_l:
-    st.write("")
-with col_r1:
-    if st.session_state.edit_target is None:
+if st.session_state.edit_target is None:
+    col_l, col_r0, col_r1, col_r2 = st.columns([3, 1, 1, 1])
+    with col_l:
+        st.write("")
+    with col_r0:
+        if st.button("🌐 從 GitHub 安裝", use_container_width=True, help="貼上 GitHub 連結，自動安全檢查後安裝"):
+            _switch_to("__github__")
+    with col_r1:
         if st.button("📋 從範本", use_container_width=True, help="從現成範本一鍵建立 skill"):
             _switch_to("__templates__")
-with col_r2:
-    if st.session_state.edit_target is None:
+    with col_r2:
         if st.button("➕ 從零開始", type="primary", use_container_width=True):
             _switch_to("__new__")
-    else:
+else:
+    col_l, col_r2 = st.columns([5, 1])
+    with col_l:
+        st.write("")
+    with col_r2:
         if st.button("← 返回列表", use_container_width=True):
             _switch_to(None)
 
 st.divider()
+
+
+# ── 從 GitHub 安裝 ──────────────────────────────────────
+def render_github_import() -> None:
+    st.subheader("🌐 從 GitHub 安裝 Skill")
+    st.info(
+        "貼上 GitHub 上 Skill 的連結，管家會自動抓取內容、**檢查是否安全**，確認沒問題後一鍵安裝。"
+    )
+
+    # 支援的 URL 格式說明
+    with st.expander("💡 支援哪些 GitHub 連結格式？", expanded=False):
+        st.markdown(
+            """
+            | 格式 | 範例 |
+            |------|------|
+            | 檔案頁面 | `https://github.com/user/repo/blob/main/SKILL.md` |
+            | 資料夾頁面 | `https://github.com/user/repo/tree/main/my-skill` |
+            | Repo 根目錄 | `https://github.com/user/repo` |
+            | Raw 連結 | `https://raw.githubusercontent.com/user/repo/main/SKILL.md` |
+
+            系統會自動尋找 `SKILL.md` 檔案。
+            """
+        )
+
+    url = st.text_input(
+        "📎 GitHub 連結",
+        placeholder="https://github.com/user/repo/blob/main/skills/code-review/SKILL.md",
+        help="貼上包含 SKILL.md 的 GitHub 頁面連結",
+    )
+
+    if st.button("🔍 抓取並檢查", type="primary", disabled=not url.strip()):
+        with st.spinner("正在從 GitHub 抓取內容..."):
+            result = fetch_skill_from_github(url)
+            st.session_state.github_result = result
+
+    result = st.session_state.github_result
+    if result is None:
+        return
+
+    # 抓取失敗
+    if result.fetch_error:
+        st.error(f"❌ {result.fetch_error}")
+        return
+
+    st.divider()
+
+    # ── 安全檢查報告 ──
+    safety = result.safety
+    if safety.dangers:
+        st.error("🚨 **安全檢查未通過** — 偵測到危險指令，建議不要安裝：")
+        for d in safety.dangers:
+            st.markdown(f"- {d}")
+    if safety.warnings:
+        st.warning("⚠️ **注意事項**（不一定危險，但請留意）：")
+        for w in safety.warnings:
+            st.markdown(f"- {w}")
+    if safety.is_safe and not safety.warnings:
+        st.success("✅ **安全檢查通過** — 未偵測到危險指令。")
+
+    # ── 預覽內容 ──
+    st.subheader("📄 Skill 內容預覽")
+
+    preview_name = st.text_input(
+        "🏷️ 名稱（可修改）",
+        value=result.name,
+        placeholder="例如：code-review",
+        help="安裝後用 `/名稱` 觸發",
+    )
+    preview_desc = st.text_input(
+        "📝 描述（可修改）",
+        value=result.description,
+        placeholder="例如：對 git diff 做完整程式碼審查",
+    )
+
+    tab1, tab2 = st.tabs(["👀 預覽", "📝 原始碼"])
+    with tab1:
+        st.markdown(result.body)
+    with tab2:
+        st.code(result.raw_content, language="markdown")
+
+    st.divider()
+
+    # ── 安裝按鈕 ──
+    col1, col2, _ = st.columns([1, 1, 4])
+    with col1:
+        install_disabled = not safety.is_safe
+        if st.button(
+            "✅ 確認安裝" if safety.is_safe else "🚫 不建議安裝",
+            type="primary",
+            disabled=install_disabled,
+            use_container_width=True,
+        ):
+            if not validate_name(preview_name):
+                st.error("❌ 名稱不合法。只能用小寫英數字、底線、連字號。")
+            elif not preview_desc.strip():
+                st.error("❌ 描述不能空白。")
+            else:
+                try:
+                    save_skill(
+                        name=preview_name.strip(),
+                        description=preview_desc.strip(),
+                        body=result.body,
+                    )
+                    st.success(
+                        f"🎉 已安裝 `{preview_name}`！\n\n"
+                        f"在 Claude Code 輸入 `/{preview_name}` 即可使用。"
+                    )
+                    st.session_state.github_result = None
+                    st.session_state.edit_target = None
+                    st.balloons()
+                except Exception as e:
+                    st.error(f"安裝失敗：{e}")
+    with col2:
+        if safety.dangers:
+            if st.button("⚠️ 我了解風險，仍要安裝", use_container_width=True):
+                if not validate_name(preview_name):
+                    st.error("❌ 名稱不合法。")
+                elif not preview_desc.strip():
+                    st.error("❌ 描述不能空白。")
+                else:
+                    try:
+                        save_skill(
+                            name=preview_name.strip(),
+                            description=preview_desc.strip(),
+                            body=result.body,
+                        )
+                        st.warning(f"⚠️ 已強制安裝 `{preview_name}`，請自行確認安全性。")
+                        st.session_state.github_result = None
+                        st.session_state.edit_target = None
+                    except Exception as e:
+                        st.error(f"安裝失敗：{e}")
 
 
 # ── 範本選擇器 ──────────────────────────────────────────
@@ -252,6 +398,8 @@ def render_form(folder: str | None) -> None:
 target = st.session_state.edit_target
 if target is None:
     render_list()
+elif target == "__github__":
+    render_github_import()
 elif target == "__templates__":
     render_templates()
 else:
