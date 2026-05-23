@@ -239,6 +239,63 @@ if "send_to_cc" not in st.session_state:
     st.session_state.send_to_cc = None
 if "uploaded_files_data" not in st.session_state:
     st.session_state.uploaded_files_data = []
+if "saved_chats" not in st.session_state:
+    # 從檔案載入歷史對話
+    _chats_dir = Path.home() / ".claude" / "sandbox_chats"
+    _chats_dir.mkdir(parents=True, exist_ok=True)
+    saved = {}
+    for f in sorted(_chats_dir.glob("*.json"), reverse=True):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            saved[f.stem] = data
+        except Exception:
+            pass
+    st.session_state.saved_chats = saved
+if "current_chat_id" not in st.session_state:
+    st.session_state.current_chat_id = None
+
+def _save_current_chat(title: str = "") -> str:
+    if not st.session_state.chat_messages:
+        return ""
+    chat_id = st.session_state.current_chat_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+    if not title:
+        first_msg = next((m.get("display_content") or m.get("content", "") for m in st.session_state.chat_messages if m["role"] == "user"), "")
+        title = (first_msg[:30] + "...") if len(first_msg) > 30 else first_msg
+    # 只存文字內容，不存 base64 圖片
+    clean_msgs = []
+    for m in st.session_state.chat_messages:
+        clean_msgs.append({
+            "role": m["role"],
+            "content": m.get("display_content") or (m["content"] if isinstance(m["content"], str) else ""),
+            "model": m.get("model", ""),
+        })
+    data = {"title": title, "messages": clean_msgs, "timestamp": datetime.now().isoformat()}
+    chats_dir = Path.home() / ".claude" / "sandbox_chats"
+    chats_dir.mkdir(parents=True, exist_ok=True)
+    (chats_dir / f"{chat_id}.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    st.session_state.saved_chats[chat_id] = data
+    st.session_state.current_chat_id = chat_id
+    return chat_id
+
+def _load_chat(chat_id: str) -> None:
+    data = st.session_state.saved_chats.get(chat_id, {})
+    st.session_state.chat_messages = [
+        {"role": m["role"], "content": m["content"], "display_content": m["content"], "model": m.get("model", "")}
+        for m in data.get("messages", [])
+    ]
+    st.session_state.current_chat_id = chat_id
+    st.session_state.send_to_cc = None
+    st.session_state.uploaded_files_data = []
+
+def _delete_chat(chat_id: str) -> None:
+    chats_dir = Path.home() / ".claude" / "sandbox_chats"
+    f = chats_dir / f"{chat_id}.json"
+    if f.exists():
+        f.unlink()
+    st.session_state.saved_chats.pop(chat_id, None)
+    if st.session_state.current_chat_id == chat_id:
+        st.session_state.current_chat_id = None
+        st.session_state.chat_messages = []
 
 # ── 頂部工具列 ──────────────────────────────────────────────
 if not AVAILABLE_MODELS:
@@ -246,6 +303,14 @@ if not AVAILABLE_MODELS:
     st.stop()
 
 model_names = [f"{m['emoji']} {m['name']}（{m['cost']}）" for m in AVAILABLE_MODELS]
+
+role_presets = {
+    "無（預設）": "",
+    "規劃助手": "你是一個專案規劃助手。幫使用者釐清需求、拆解任務、提出實作方案。回答使用繁體中文，條列式呈現，最後給出一個可以直接交給工程師執行的明確指令。",
+    "程式碼顧問": "你是一個資深軟體工程師。幫使用者分析技術方案、評估可行性、指出潛在風險。回答使用繁體中文，給出具體的程式碼建議和檔案結構。",
+    "繁體中文助手": "你是一個繁體中文助手，所有回答都使用繁體中文。回答要簡潔、清楚、實用。",
+    "自訂...": "__custom__",
+}
 
 top1, top2, top3, top4, top5 = st.columns([3, 1, 1, 1, 1])
 
@@ -260,23 +325,7 @@ with top1:
 
 with top2:
     with st.popover("⚙️ 設定", use_container_width=True):
-        st.markdown("**🎭 角色指令**")
-        role_presets = {
-            "無（預設）": "",
-            "規劃助手": "你是一個專案規劃助手。幫使用者釐清需求、拆解任務、提出實作方案。回答使用繁體中文，條列式呈現，最後給出一個可以直接交給工程師執行的明確指令。",
-            "程式碼顧問": "你是一個資深軟體工程師。幫使用者分析技術方案、評估可行性、指出潛在風險。回答使用繁體中文，給出具體的程式碼建議和檔案結構。",
-            "繁體中文助手": "你是一個繁體中文助手，所有回答都使用繁體中文。回答要簡潔、清楚、實用。",
-            "自訂...": "__custom__",
-        }
-        selected_role = st.selectbox("角色", list(role_presets.keys()), key="role-preset", label_visibility="collapsed")
-        if role_presets[selected_role] == "__custom__":
-            system_prompt = st.text_area("自訂指令", height=80, key="custom-sys", placeholder="你是一個...")
-        else:
-            system_prompt = role_presets[selected_role]
-
-        st.divider()
         max_tokens = st.slider("回應長度", 256, 4096, 2048, 256)
-
         st.divider()
         st.markdown("**🔀 比較模式**")
         compare_mode = st.toggle("同時送給多個模型", value=False)
@@ -285,50 +334,44 @@ with top2:
             compare_indices = st.multiselect("選擇比較模型", range(len(AVAILABLE_MODELS)), format_func=lambda i: model_names[i], max_selections=3)
             compare_models = [AVAILABLE_MODELS[i] for i in compare_indices]
 
-with top3:
-    with st.popover("📎 附件", use_container_width=True):
-        st.markdown("**上傳檔案加入對話**")
-        uploaded = st.file_uploader(
-            "選擇檔案",
-            type=["png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "md", "py", "js", "ts", "json", "csv", "html", "css"],
-            accept_multiple_files=True,
-            key="file-upload",
-            label_visibility="collapsed",
-        )
-        if uploaded:
-            st.session_state.uploaded_files_data = []
-            for f in uploaded:
-                file_data = {"name": f.name, "type": f.type, "size": f.size}
-                if f.type and f.type.startswith("image/"):
-                    file_data["kind"] = "image"
-                    file_data["base64"] = base64.b64encode(f.read()).decode()
-                    file_data["media_type"] = f.type
-                else:
-                    file_data["kind"] = "text"
-                    try:
-                        file_data["text"] = f.read().decode("utf-8")
-                    except Exception:
-                        file_data["text"] = f"（無法讀取 {f.name} 的內容）"
-                st.session_state.uploaded_files_data.append(file_data)
-            st.success(f"已載入 {len(uploaded)} 個檔案")
-
-        if st.session_state.uploaded_files_data:
-            st.caption(f"📎 已附加 {len(st.session_state.uploaded_files_data)} 個檔案")
-            for fd in st.session_state.uploaded_files_data:
-                icon = "🖼️" if fd["kind"] == "image" else "📄"
-                st.caption(f"{icon} {fd['name']}")
-            if st.button("🗑️ 清除附件"):
-                st.session_state.uploaded_files_data = []
-                st.rerun()
-
 with top4:
+    with st.popover("📚 紀錄", use_container_width=True):
+        st.markdown("**對話紀錄**")
+        if st.session_state.chat_messages:
+            if st.button("💾 儲存目前對話", use_container_width=True, type="primary"):
+                cid = _save_current_chat()
+                st.success(f"✅ 已儲存")
+            st.divider()
+
+        if st.session_state.saved_chats:
+            for cid, cdata in list(st.session_state.saved_chats.items())[:10]:
+                title = cdata.get("title", cid)
+                ts = cdata.get("timestamp", "")[:10]
+                msg_count = len(cdata.get("messages", []))
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    if st.button(f"💬 {title}", key=f"load-{cid}", use_container_width=True):
+                        _load_chat(cid)
+                        st.rerun()
+                with c2:
+                    if st.button("🗑️", key=f"del-chat-{cid}"):
+                        _delete_chat(cid)
+                        st.rerun()
+                st.caption(f"{ts} · {msg_count} 則訊息")
+        else:
+            st.caption("還沒有儲存的對話")
+
+with top5:
     if st.button("🗑️ 新對話", use_container_width=True):
+        if st.session_state.chat_messages:
+            _save_current_chat()
         st.session_state.chat_messages = []
         st.session_state.send_to_cc = None
         st.session_state.uploaded_files_data = []
+        st.session_state.current_chat_id = None
         st.rerun()
 
-with top5:
+with top6:
     with st.popover("❓", use_container_width=True):
         st.markdown("""
 **對話沙盒**
@@ -384,18 +427,6 @@ with st.container(border=True):
             st.caption(f"⚠️ 錯誤：**{usage['errors']}** 次")
         else:
             st.caption(f"🤖 {current_model['name']}")
-
-# ── 附件預覽 ──────────────────────────────────────────────
-if st.session_state.uploaded_files_data:
-    with st.container(border=True):
-        file_cols = st.columns(min(len(st.session_state.uploaded_files_data), 4))
-        for idx, fd in enumerate(st.session_state.uploaded_files_data):
-            with file_cols[idx % 4]:
-                if fd["kind"] == "image":
-                    st.image(f"data:{fd['media_type']};base64,{fd['base64']}", caption=fd["name"], width=120)
-                else:
-                    st.caption(f"📄 **{fd['name']}**")
-                    st.caption(f"{len(fd['text'])} 字元")
 
 # ── 送出面板 ──────────────────────────────────────────────
 if st.session_state.send_to_cc is not None:
@@ -575,6 +606,46 @@ for i, msg in enumerate(st.session_state.chat_messages):
                         st.success("✅ 已複製")
                     except Exception:
                         st.info("請手動複製上方內容")
+
+# ── 輸入區上方：角色 + 附件 ──────────────────────────────
+inp1, inp2, inp3 = st.columns([2, 2, 1])
+with inp1:
+    selected_role = st.selectbox("🎭 角色", list(role_presets.keys()), key="role-preset", label_visibility="collapsed")
+    if role_presets[selected_role] == "__custom__":
+        system_prompt = st.text_input("自訂指令", key="custom-sys", placeholder="你是一個...", label_visibility="collapsed")
+    else:
+        system_prompt = role_presets[selected_role]
+
+with inp2:
+    uploaded = st.file_uploader(
+        "📎 附件",
+        type=["png", "jpg", "jpeg", "gif", "webp", "txt", "md", "py", "js", "ts", "json", "csv", "html", "css"],
+        accept_multiple_files=True,
+        key="file-upload",
+        label_visibility="collapsed",
+    )
+    if uploaded:
+        st.session_state.uploaded_files_data = []
+        for f in uploaded:
+            file_data = {"name": f.name, "type": f.type, "size": f.size}
+            if f.type and f.type.startswith("image/"):
+                file_data["kind"] = "image"
+                file_data["base64"] = base64.b64encode(f.read()).decode()
+                file_data["media_type"] = f.type
+            else:
+                file_data["kind"] = "text"
+                try:
+                    file_data["text"] = f.read().decode("utf-8")
+                except Exception:
+                    file_data["text"] = f"（無法讀取 {f.name} 的內容）"
+            st.session_state.uploaded_files_data.append(file_data)
+
+with inp3:
+    if st.session_state.uploaded_files_data:
+        names = ", ".join(fd["name"] for fd in st.session_state.uploaded_files_data)
+        st.caption(f"📎 {names}")
+    elif system_prompt:
+        st.caption(f"🎭 {selected_role}")
 
 # ── 輸入區 ──────────────────────────────────────────────
 prompt = st.chat_input(f"跟 {current_model['name']} 討論你的想法...")
