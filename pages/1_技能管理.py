@@ -28,16 +28,17 @@ with st.expander("❓ 什麼是 Skill？我要怎麼用？", expanded=False):
     st.markdown(
         """
         ### 一句話解釋
-        Skill 是**教 Claude Code 做某件事的腳本**，建立後可在 Claude Code 終端機輸入 `/skill 名稱` 觸發。
+        Skill 是**教 Claude Code 做某件事的腳本**，建立後可在 Claude Code 終端機輸入 `/名稱` 觸發。
 
         ### 簡單例子
         你建立一個叫 `code-review` 的 skill，內容是「請審查我修改的程式碼…」，
         之後在 Claude Code 只要打 `/code-review`，Claude 就會照你寫的去做。
 
         ### 怎麼開始？
-        1. 點下方「**📋 從範本建立**」其中一個 → 一鍵建好
-        2. 或點「**➕ 從零開始**」自己寫
-        3. 建好之後，**重啟 Claude Code**，輸入 `/<你的 skill 名稱>` 就能用
+        1. 點右上「**🌐 從 GitHub 安裝**」貼上連結 → 自動安全檢查 → 一鍵安裝
+        2. 或點「**📋 從範本**」選一個現成的 → 一鍵建好
+        3. 或點「**➕ 從零開始**」自己寫
+        4. 建好之後，在 Claude Code 輸入 `/<你的 skill 名稱>` 就能用
 
         ### 檔案存在哪？
         `~/.claude/skills/<skill 名稱>/SKILL.md`（這個面板自動幫你管，不用手動編輯）
@@ -259,12 +260,9 @@ def render_list() -> None:
         st.info(
             "👋 **目前還沒有任何 skill。**\n\n"
             "建議起手式：\n"
-            "1. 點右上「**📋 從範本**」選一個現成的（最快，1 分鐘搞定）\n"
-            "2. 或點「**➕ 從零開始**」自己寫"
-        )
-        st.image(
-            "https://placehold.co/800x200/e0f2fe/0369a1?text=Skills+is+empty+-+click+template+to+start",
-            use_container_width=True,
+            "1. 點右上「**🌐 從 GitHub 安裝**」→ 貼連結自動安裝（最推薦）\n"
+            "2. 點「**📋 從範本**」選一個現成的（最快，1 分鐘搞定）\n"
+            "3. 或點「**➕ 從零開始**」自己寫"
         )
         return
 
@@ -386,7 +384,7 @@ def render_form(folder: str | None) -> None:
                 )
                 st.success(
                     f"✅ 已儲存 `{new_name}`！\n\n"
-                    f"**下一步**：重啟 Claude Code，輸入 `/{new_name}` 就能用了。"
+                    f"**下一步**：在 Claude Code 輸入 `/{new_name}` 就能用了。"
                 )
                 st.session_state.edit_target = None
                 st.rerun()

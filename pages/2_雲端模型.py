@@ -299,8 +299,8 @@ PROVIDERS = [
             {"id": "pro",   "name": "DeepSeek Pro（¥9.9/月）","desc": "更高額度 + 優先回應", "price": "¥9.9/月"},
         ],
         "models": [
-            ("DeepSeek-R1", "深度推理模型"),
-            ("DeepSeek-V3", "通用對話模型"),
+            ("DeepSeek-R1", "深度推理模型，開源"),
+            ("DeepSeek-V3-0324", "通用對話模型，高性價比"),
         ],
     },
     {
@@ -342,7 +342,7 @@ PROVIDERS = [
             "對話介面": "https://chat.mistral.ai",
             "訂閱方案": "https://mistral.ai/pricing",
             "API Key 申請": "https://console.mistral.ai/api-keys",
-            "API 定價": "https://mistral.ai/pricing",
+            "API 定價": "https://docs.mistral.ai/capabilities/pricing",
             "API 文件": "https://docs.mistral.ai",
         },
         "subscription_plans": [
@@ -377,7 +377,7 @@ for provider in PROVIDERS:
         with h1:
             if is_configured or has_cli:
                 if saved_mode == "subscription" or (has_cli and not saved_mode):
-                    plan_label = saved_plan or ("已透過 Claude Code 登入" if has_cli else "已設定")
+                    plan_label = p_cfg.get("plan_name", "") or saved_plan or ("已透過 Claude Code 登入" if has_cli else "已設定")
                     st.markdown(f"### {provider['emoji']} {provider['name']} ✅")
                     st.caption(f"🔄 訂閱制 — {plan_label}")
                 else:
@@ -414,9 +414,16 @@ for provider in PROVIDERS:
             mode_options.append("🔄 訂閱制（月費）")
         mode_options.append("🔑 API Key（按量計費）")
 
+        default_idx = 0
+        if saved_mode == "api_key" and len(mode_options) > 1:
+            default_idx = 1
+        elif saved_mode == "subscription":
+            default_idx = 0
+
         selected_mode = st.radio(
             "使用方式",
             mode_options,
+            index=default_idx,
             key=f"mode-{pid}",
             horizontal=True,
             label_visibility="collapsed",
@@ -532,7 +539,7 @@ with st.expander("📋 全模型比較表", expanded=False):
 | MiniMax-Text-01 | MiniMax | 超長上下文（4M） | 4M | 💰💰 |
 | MiniMax-M1 | MiniMax | 深度推理 | 1M | 💰💰 |
 | DeepSeek-R1 | DeepSeek | 深度推理、開源 | 128K | 💰 |
-| DeepSeek-V3 | DeepSeek | 通用對話、高性價比 | 128K | 💰 |
+| DeepSeek-V3-0324 | DeepSeek | 通用對話、高性價比 | 128K | 💰 |
 | Grok 3 | xAI | 旗艦推理 | 128K | 💰💰💰 |
 | Grok 3 mini | xAI | 快速推理 | 128K | 💰 |
 | Mistral Large | Mistral | 歐洲旗艦模型 | 128K | 💰💰 |
