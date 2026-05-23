@@ -26,6 +26,42 @@ st.set_page_config(
 
 st.markdown(f"<style>{STYLE_CSS}</style>", unsafe_allow_html=True)
 
+# Streamlit 選單中文化
+st.markdown("""<script>
+const translations = {
+    'Rerun': '重新執行',
+    'Settings': '設定',
+    'Print': '列印',
+    'Record a screencast': '錄製畫面',
+    'Developer options': '開發者選項',
+    'Clear cache': '清除快取',
+    'Deploy': '部署',
+    'Browse files': '瀏覽檔案',
+    'Drag and drop files here': '拖放檔案到這裡',
+    'Limit 200MB per file': '每個檔案最大 200MB',
+    'or': '或',
+    'Delete': '刪除',
+    'Press Enter': '按 Enter',
+    'to apply': '套用',
+    'Running...': '執行中...',
+    'Made with Streamlit': '由 Streamlit 驅動',
+};
+function translateUI() {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+        const node = walker.currentNode;
+        for (const [en, zh] of Object.entries(translations)) {
+            if (node.textContent.trim() === en) {
+                node.textContent = zh;
+            }
+        }
+    }
+}
+const observer = new MutationObserver(() => setTimeout(translateUI, 100));
+observer.observe(document.body, { childList: true, subtree: true });
+setTimeout(translateUI, 500);
+</script>""", unsafe_allow_html=True)
+
 # ── 側邊欄：新手指南 ──────────────────────────────────────
 with st.sidebar:
     st.markdown("### 🎓 新手指南")

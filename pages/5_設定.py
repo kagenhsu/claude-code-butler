@@ -13,8 +13,8 @@ from lib.usage import detect_usage
 
 st.set_page_config(page_title="設定 | Claude Code 管家", page_icon="⚙️", layout="wide")
 
-_css = (Path(__file__).parent.parent / "assets" / "style.css").read_text()
-st.markdown(f"<style>{_css}</style>", unsafe_allow_html=True)
+from lib.ui import inject_style
+inject_style(st)
 
 st.title("⚙️ 設定")
 st.caption("硬體規格、使用量、系統路徑")

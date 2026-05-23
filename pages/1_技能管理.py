@@ -18,8 +18,8 @@ from lib.github_skill import fetch_skill_from_github
 
 st.set_page_config(page_title="技能管理 | Claude Code 管家", page_icon="📂", layout="wide")
 
-_css = (Path(__file__).parent.parent / "assets" / "style.css").read_text()
-st.markdown(f"<style>{_css}</style>", unsafe_allow_html=True)
+from lib.ui import inject_style
+inject_style(st)
 
 st.title("📂 技能管理")
 

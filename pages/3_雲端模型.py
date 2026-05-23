@@ -12,8 +12,8 @@ from lib.paths import config_file
 
 st.set_page_config(page_title="雲端模型 | Claude Code 管家", page_icon="🤖", layout="wide")
 
-_css = (Path(__file__).parent.parent / "assets" / "style.css").read_text()
-st.markdown(f"<style>{_css}</style>", unsafe_allow_html=True)
+from lib.ui import inject_style
+inject_style(st)
 
 st.title("🤖 雲端模型")
 st.caption("設定你使用的 AI 模型 — 支援訂閱制與 API Key 兩種方式")

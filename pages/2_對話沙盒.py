@@ -18,8 +18,34 @@ from lib.paths import config_file
 
 st.set_page_config(page_title="對話沙盒 | Claude Code 管家", page_icon="💬", layout="wide")
 
-_css = (Path(__file__).parent.parent / "assets" / "style.css").read_text()
-st.markdown(f"<style>{_css}</style>", unsafe_allow_html=True)
+from lib.ui import inject_style
+inject_style(st)
+
+st.title("💬 對話沙盒")
+st.caption("跟 AI 討論想法、規劃方案，確認好了再送到 Claude 桌面版 / VS Code / Claude Code 執行")
+
+# ── 說明 ──────────────────────────────────────────────────
+with st.expander("❓ 對話沙盒怎麼用？", expanded=False):
+    st.markdown("""
+### 工作流程
+
+```
+💬 對話沙盒（討論想法）→ 確認方案 → 🖥️ Claude 桌面版 / 📝 VS Code / 💻 Claude Code
+```
+
+### 為什麼不直接在 Claude Code 討論？
+
+- **不會改檔案** — 純聊天，沒有風險
+- **可用便宜模型** — Haiku / GPT-4o mini / DeepSeek，省主力模型額度
+- **可上傳檔案** — 圖片、程式碼、文件都能丟進來輔助討論
+
+### 討論好之後
+
+每個 AI 回答下方都有按鈕，可以一鍵送到：
+- 🖥️ **Claude 桌面版** — 用 Cowork 功能做更詳細的規劃
+- 📝 **VS Code** — 在編輯器裡直接讓 Claude Code 擴充套件執行
+- 💻 **Claude Code CLI** — 存成任務檔到終端機執行
+""")
 
 # ── 載入設定 ──────────────────────────────────────────────
 def _load_config() -> dict:
