@@ -102,12 +102,20 @@ def detect_status() -> SystemStatus:
 
     s.cloud_models = cloud
 
-    # 本地模型偵測 (Ollama)
+    # 本地模型偵測 (Ollama + LM Studio)
     if shutil.which("ollama"):
         result = _run(["ollama", "list"])
         if result:
             lines = [l for l in result.split("\n")[1:] if l.strip()]
             s.local_models = [l.split()[0] for l in lines if l.split()]
-            s.local_model_count = len(s.local_models)
+
+    # LM Studio 模型
+    from pathlib import Path
+    lms_dir = Path.home() / ".lmstudio" / "models"
+    if lms_dir.is_dir():
+        for gguf in lms_dir.rglob("*.gguf"):
+            s.local_models.append(f"[LMS] {gguf.stem}")
+
+    s.local_model_count = len(s.local_models)
 
     return s

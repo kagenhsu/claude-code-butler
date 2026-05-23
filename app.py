@@ -127,7 +127,7 @@ with st.container(border=True):
 with st.container(border=True):
     hw1, hw2, hw3, hw4 = st.columns(4)
     with hw1:
-        st.markdown(f"💻 **CPU**：{spec.cpu_name}（{hw_spec.cpu_cores} 核心）" if hw_spec.cpu_name else f"💻 **CPU**：{hw_spec.cpu_cores} 核心")
+        st.markdown(f"💻 **CPU**：{hw_spec.cpu_name}（{hw_spec.cpu_cores} 核心）" if hw_spec.cpu_name else f"💻 **CPU**：{hw_spec.cpu_cores} 核心")
     with hw2:
         st.markdown(f"🧮 **記憶體**：{hw_spec.ram_total_gb} GB（可用 {hw_spec.ram_available_gb} GB）")
     with hw3:
