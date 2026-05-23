@@ -90,19 +90,19 @@ bash install.sh        # macOS / Linux
 
 > 「教 Claude Code 做特定任務的腳本」
 
-Skill 是教 Claude Code 怎麼做某件事的 Markdown 檔案。建立後在 Claude Code 輸入 `/skill 名稱` 就會觸發。
+Skill 是教 Claude Code 怎麼做某件事的 Markdown 檔案。建立後在 Claude Code 輸入 `/名稱` 即可觸發，不需要重啟。
 
 **功能：**
-- ➕ 從零開始建立 Skill
+- 🌐 **從 GitHub 安裝 Skill** — 貼上 GitHub 連結，自動抓取內容（最推薦）
 - 📋 從 3 個現成範本一鍵建立（程式碼審查、Git 提交助手、測試產生器）
-- 🌐 **從 GitHub 安裝 Skill** — 貼上 GitHub 連結，自動抓取內容
+- ➕ 從零開始建立 Skill
 - 🛡️ **自動安全檢查** — 掃描 15 種危險指令模式（`rm -rf`、`curl|sh`、`sudo` 等），危險的會阻擋
 - ✏️ 編輯 / 🗑️ 刪除現有 Skill
 - 預覽 Skill 內容（渲染 + 原始碼）
 
 **使用流程：**
 ```
-管家網頁 → 技能管理 → 從範本建立 → 重啟 Claude Code → 輸入 /skill-名稱
+管家網頁 → 技能管理 → 從 GitHub 安裝 / 從範本建立 / 從零開始 → 在 Claude Code 輸入 /名稱
 ```
 
 ---
@@ -119,7 +119,7 @@ Skill 是教 Claude Code 怎麼做某件事的 Markdown 檔案。建立後在 Cl
 | 🟢 **OpenAI** | Free / Plus / Pro | GPT-4o / GPT-4o mini / o3 |
 | 🔵 **Google** | Free / AI Premium | Gemini 2.5 Pro / Flash |
 | 🟡 **MiniMax** | Free / Hailuo Pro / Unlimited | MiniMax-Text-01 / M1 |
-| 🔷 **DeepSeek** | Free / Pro | DeepSeek-R1 / V3 |
+| 🔷 **DeepSeek** | Free / Pro | DeepSeek-R1 / V3-0324 |
 | ⚫ **xAI** | Free / Premium / SuperGrok | Grok 3 / Grok 3 mini |
 | 🟠 **Mistral** | Free / Le Chat Pro | Mistral Large / Codestral |
 
