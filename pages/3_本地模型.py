@@ -234,7 +234,30 @@ if lms_path:
                 with c4:
                     st.caption(m["type"])
     else:
-        st.info("LM Studio 已安裝但尚未下載任何模型。請在 LM Studio App 中搜尋下載。")
+        st.info("LM Studio 已安裝但尚未下載任何模型。")
+
+    # 下載新模型
+    with st.container(border=True):
+        st.markdown("**📥 下載新模型**")
+        ld1, ld2 = st.columns([3, 1])
+        with ld1:
+            lms_new_model = st.text_input(
+                "模型名稱",
+                placeholder="例如：llama-3.1-8b、qwen2.5-7b-instruct、gemma-2-9b-it",
+                key="lms-download",
+                label_visibility="collapsed",
+            )
+        with ld2:
+            if st.button("📥 下載", key="lms-dl-btn", type="primary", use_container_width=True, disabled=not lms_new_model.strip()):
+                with st.spinner(f"正在透過 LM Studio 下載 {lms_new_model}（可能需要幾分鐘）..."):
+                    result = _run(["lms", "get", lms_new_model.strip(), "-y"], timeout=600)
+                if result is not None:
+                    st.success(f"✅ 已下載 {lms_new_model}")
+                    st.rerun()
+                else:
+                    st.error("下載失敗，請確認模型名稱是否正確，或 LM Studio 是否開啟")
+
+        st.caption("🔗 [LM Studio 官網 →](https://lmstudio.ai)　在 App 搜尋欄也可以找模型")
 
     # LM Studio 伺服器控制
     with st.container(border=True):
@@ -270,24 +293,33 @@ st.subheader("🌟 推薦模型")
 st.caption("適合在本機執行的熱門模型，依記憶體需求排列")
 
 recommended = [
-    {"name": "Llama 3.1 8B", "provider": "Meta", "ram": "8 GB", "desc": "通用對話，性能均衡", "ollama": "llama3.1", "link": "https://ollama.com/library/llama3.1"},
-    {"name": "Qwen 2.5 7B", "provider": "Alibaba", "ram": "8 GB", "desc": "中英文雙語，程式碼能力強", "ollama": "qwen2.5", "link": "https://ollama.com/library/qwen2.5"},
-    {"name": "Gemma 2 9B", "provider": "Google", "ram": "8 GB", "desc": "Google 開源，推理能力佳", "ollama": "gemma2", "link": "https://ollama.com/library/gemma2"},
-    {"name": "Qwen 2.5 Coder 7B", "provider": "Alibaba", "ram": "8 GB", "desc": "程式碼專用，支援多語言", "ollama": "qwen2.5-coder", "link": "https://ollama.com/library/qwen2.5-coder"},
-    {"name": "DeepSeek R1 8B", "provider": "DeepSeek", "ram": "8 GB", "desc": "深度推理，開源", "ollama": "deepseek-r1:8b", "link": "https://ollama.com/library/deepseek-r1"},
-    {"name": "Phi-4 14B", "provider": "Microsoft", "ram": "16 GB", "desc": "微軟小而精模型", "ollama": "phi4", "link": "https://ollama.com/library/phi4"},
-    {"name": "Llama 3.1 70B", "provider": "Meta", "ram": "48 GB", "desc": "大型模型，接近 GPT-4 水準", "ollama": "llama3.1:70b", "link": "https://ollama.com/library/llama3.1:70b"},
+    {"name": "Llama 3.1 8B", "provider": "Meta", "ram": "8 GB", "desc": "通用對話，性能均衡",
+     "ollama": "llama3.1", "lms": "llama-3.1-8b", "link": "https://ollama.com/library/llama3.1"},
+    {"name": "Qwen 2.5 7B", "provider": "Alibaba", "ram": "8 GB", "desc": "中英文雙語，程式碼能力強",
+     "ollama": "qwen2.5", "lms": "qwen2.5-7b-instruct", "link": "https://ollama.com/library/qwen2.5"},
+    {"name": "Gemma 2 9B", "provider": "Google", "ram": "8 GB", "desc": "Google 開源，推理能力佳",
+     "ollama": "gemma2", "lms": "gemma-2-9b-it", "link": "https://ollama.com/library/gemma2"},
+    {"name": "Qwen 2.5 Coder 7B", "provider": "Alibaba", "ram": "8 GB", "desc": "程式碼專用，支援多語言",
+     "ollama": "qwen2.5-coder", "lms": "qwen2.5-coder-7b-instruct", "link": "https://ollama.com/library/qwen2.5-coder"},
+    {"name": "DeepSeek R1 8B", "provider": "DeepSeek", "ram": "8 GB", "desc": "深度推理，開源",
+     "ollama": "deepseek-r1:8b", "lms": "deepseek-r1-distill-qwen-8b", "link": "https://ollama.com/library/deepseek-r1"},
+    {"name": "Phi-4 14B", "provider": "Microsoft", "ram": "16 GB", "desc": "微軟小而精模型",
+     "ollama": "phi4", "lms": "phi-4", "link": "https://ollama.com/library/phi4"},
+    {"name": "Llama 3.1 70B", "provider": "Meta", "ram": "48 GB", "desc": "大型模型，接近 GPT-4 水準",
+     "ollama": "llama3.1:70b", "lms": "llama-3.1-70b-instruct", "link": "https://ollama.com/library/llama3.1:70b"},
 ]
 
 from lib.hardware import detect_hardware
 hw = detect_hardware()
+
+has_any_tool = ollama_path or lms_path
 
 for m in recommended:
     ram_needed = int(m["ram"].split()[0])
     can_run = hw.ram_total_gb >= ram_needed
 
     with st.container(border=True):
-        r1, r2, r3, r4 = st.columns([3, 1, 1, 1])
+        r1, r2, r3, r4, r5 = st.columns([3, 1, 1, 1, 1])
         with r1:
             st.markdown(f"**{m['name']}**")
             st.caption(f"{m['provider']} · {m['desc']}")
@@ -295,18 +327,36 @@ for m in recommended:
             if can_run:
                 st.caption(f"💾 需要 {m['ram']}")
             else:
-                st.caption(f"⚠️ 需要 {m['ram']}（你只有 {hw.ram_total_gb:.0f} GB）")
+                st.caption(f"⚠️ 需要 {m['ram']}（你有 {hw.ram_total_gb:.0f} GB）")
         with r3:
             st.link_button("📖 詳情", m["link"], use_container_width=True)
         with r4:
             if ollama_path:
-                if st.button("📥 安裝", key=f"rec-{m['ollama']}", use_container_width=True, disabled=not can_run):
-                    with st.spinner(f"正在下載 {m['ollama']}..."):
+                if st.button("🦙 Ollama 安裝", key=f"rec-ollama-{m['ollama']}", use_container_width=True, disabled=not can_run):
+                    with st.spinner(f"正在透過 Ollama 下載 {m['ollama']}..."):
                         result = _run(["ollama", "pull", m["ollama"]], timeout=600)
                     if result is not None:
-                        st.success(f"✅ 已下載")
+                        st.success(f"✅ 已透過 Ollama 下載 {m['name']}")
                         st.rerun()
                     else:
-                        st.error("下載失敗")
+                        st.error("下載失敗，請確認 Ollama 服務是否啟動")
             else:
-                st.button("需要 Ollama", key=f"rec-dis-{m['ollama']}", disabled=True, use_container_width=True)
+                st.button("🦙 需要 Ollama", key=f"rec-ollama-dis-{m['ollama']}", disabled=True, use_container_width=True)
+        with r5:
+            if lms_path:
+                if st.button("🎬 LM Studio 安裝", key=f"rec-lms-{m['lms']}", use_container_width=True, disabled=not can_run):
+                    with st.spinner(f"正在透過 LM Studio 下載 {m['lms']}..."):
+                        result = _run(["lms", "get", m["lms"], "-y"], timeout=600)
+                    if result is not None:
+                        st.success(f"✅ 已透過 LM Studio 下載 {m['name']}")
+                        st.rerun()
+                    else:
+                        st.error("下載失敗，請確認 LM Studio 是否開啟")
+            else:
+                st.button("🎬 需要 LM Studio", key=f"rec-lms-dis-{m['lms']}", disabled=True, use_container_width=True)
+
+    if not has_any_tool:
+        break
+
+if not has_any_tool:
+    st.warning("⚠️ 需要安裝 Ollama 或 LM Studio 才能下載模型。請先在上方安裝其中一個工具。")
