@@ -238,7 +238,13 @@ PROVIDERS = [
         "env_var": "MINIMAX_API_KEY",
         "key_prefix": "eyJ",
         "test_fn": _test_minimax,
-        "has_subscription": False,
+        "has_subscription": True,
+        "subscription_plans": [
+            {"id": "free",    "name": "Free（免費）",         "desc": "基礎額度，每日有限制", "price": "免費"},
+            {"id": "pro",     "name": "Hailuo Pro（$9.99/月）","desc": "進階存取 + 更高額度", "price": "$9.99/月"},
+            {"id": "unlimited","name": "Hailuo Unlimited（$29.99/月）","desc": "無限制使用 + 優先回應", "price": "$29.99/月"},
+            {"id": "cn_vip",  "name": "海螺 VIP（¥99/月）",   "desc": "中國版 VIP 完整存取", "price": "¥99/月"},
+        ],
         "models": [
             ("MiniMax-Text-01", "旗艦文字模型，4M 超長上下文"),
             ("MiniMax-M1", "深度推理模型"),
@@ -251,7 +257,11 @@ PROVIDERS = [
         "env_var": "DEEPSEEK_API_KEY",
         "key_prefix": "sk-",
         "test_fn": _test_deepseek,
-        "has_subscription": False,
+        "has_subscription": True,
+        "subscription_plans": [
+            {"id": "free",  "name": "Free（免費）",         "desc": "DeepSeek 網頁版免費使用", "price": "免費"},
+            {"id": "pro",   "name": "DeepSeek Pro（¥9.9/月）","desc": "更高額度 + 優先回應", "price": "¥9.9/月"},
+        ],
         "models": [
             ("DeepSeek-R1", "深度推理模型"),
             ("DeepSeek-V3", "通用對話模型"),
