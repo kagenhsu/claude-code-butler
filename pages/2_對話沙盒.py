@@ -312,7 +312,7 @@ role_presets = {
     "自訂...": "__custom__",
 }
 
-top1, top2, top3, top4, top5 = st.columns([3, 1, 1, 1, 1])
+top1, top2, top3, top4, top5, top6 = st.columns([3, 1, 1, 1, 1, 1])
 
 with top1:
     selected_idx = st.selectbox(
