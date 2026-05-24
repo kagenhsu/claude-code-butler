@@ -11,7 +11,9 @@ import streamlit as st
 st.set_page_config(page_title="本地模型 | Claude Code 管家", page_icon="💻", layout="wide")
 
 from lib.ui import inject_style
+from lib.nav import render_nav
 inject_style(st)
+render_nav()
 
 st.title("💻 本地模型")
 st.caption("管理電腦上的本地大語言模型 — Ollama / LM Studio")

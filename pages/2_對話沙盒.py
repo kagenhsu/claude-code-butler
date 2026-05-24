@@ -14,12 +14,15 @@ from pathlib import Path
 
 import streamlit as st
 
+from lib import secrets_store
 from lib.paths import config_file
 
 st.set_page_config(page_title="對話沙盒 | Claude Code 管家", page_icon="💬", layout="wide")
 
 from lib.ui import inject_style
+from lib.nav import render_nav
 inject_style(st)
+render_nav()
 
 st.title("💬 對話沙盒")
 st.caption("跟 AI 討論想法、規劃方案，確認好了再送到 Claude 桌面版 / VS Code / Claude Code 執行")
@@ -48,22 +51,15 @@ with st.expander("❓ 對話沙盒怎麼用？", expanded=False):
 """)
 
 # ── 載入設定 ──────────────────────────────────────────────
-def _load_config() -> dict:
-    cf = config_file()
-    if cf.is_file():
-        try:
-            return json.loads(cf.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {}
-
-cfg = _load_config()
-api_keys = cfg.get("api_keys", {})
+cfg = secrets_store.load_config()
 providers_cfg = cfg.get("providers", {})
 
 def _get_key(provider_id: str, env_var: str) -> str:
-    p = providers_cfg.get(provider_id, {})
-    return p.get("api_key", "") or api_keys.get(provider_id, "") or os.environ.get(env_var, "")
+    # 走加密儲存：encrypted_api_keys → 舊版 api_keys / providers[*].api_key → 環境變數
+    key = secrets_store.get_api_key(provider_id, include_env=False)
+    if key:
+        return key
+    return os.environ.get(env_var, "")
 
 # ── 可用模型列表 ──────────────────────────────────────────
 AVAILABLE_MODELS: list[dict] = []

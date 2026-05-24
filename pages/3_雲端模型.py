@@ -8,36 +8,43 @@ from pathlib import Path
 
 import streamlit as st
 
+from lib import secrets_store
 from lib.paths import config_file
 
 st.set_page_config(page_title="雲端模型 | Claude Code 管家", page_icon="🤖", layout="wide")
 
 from lib.ui import inject_style
+from lib.nav import render_nav
 inject_style(st)
+render_nav()
 
 st.title("🤖 雲端模型")
-st.caption("設定你使用的 AI 模型 — 支援訂閱制與 API Key 兩種方式")
+st.caption("設定你使用的 AI 模型 — 支援訂閱制與 API Key 兩種方式（API Key 已加密儲存 🔒）")
+
+# ── 明文殘留遷移提示 ──
+_leftovers = secrets_store.has_plaintext_leftovers()
+if _leftovers:
+    with st.container(border=True):
+        st.warning(
+            f"⚠️ 偵測到 **{len(_leftovers)}** 個 API Key 仍以明文儲存"
+            f"（{', '.join(_leftovers)}），建議轉成加密儲存。"
+        )
+        if st.button("🔒 全部轉成加密儲存", type="primary", key="migrate-plain-cloud"):
+            n = secrets_store.migrate_plaintext_keys()
+            st.success(f"✅ 已加密 {n} 組 Key")
+            st.rerun()
 
 # ── 設定檔讀寫 ──────────────────────────────────────────────
 CONFIG_PATH = config_file()
 
 def _load_config() -> dict:
-    if CONFIG_PATH.is_file():
-        try:
-            return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {}
+    return secrets_store.load_config()
 
 def _save_config(cfg: dict) -> None:
-    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    secrets_store.save_config(cfg)
 
 def _mask_key(key: str) -> str:
-    if not key:
-        return ""
-    if len(key) <= 8:
-        return "****"
-    return key[:4] + "…" + key[-4:]
+    return secrets_store.mask_key(key)
 
 # ── 連線測試函式 ──────────────────────────────────────────
 def _test_anthropic(key: str) -> tuple[bool, str]:
@@ -362,7 +369,7 @@ for provider in PROVIDERS:
     pid = provider["id"]
     p_cfg = providers_cfg.get(pid, {})
     saved_mode = p_cfg.get("mode", "")  # "subscription" | "api_key" | ""
-    saved_key = p_cfg.get("api_key", "")
+    saved_key = secrets_store.get_api_key(pid, include_env=False)
     saved_plan = p_cfg.get("plan", "")
     env_key = os.environ.get(provider["env_var"], "")
 
@@ -490,18 +497,8 @@ for provider in PROVIDERS:
                     if not new_key.strip():
                         st.error("❌ 請輸入 API Key")
                     else:
-                        if "providers" not in cfg:
-                            cfg["providers"] = {}
-                        cfg["providers"][pid] = {
-                            "mode": "api_key",
-                            "api_key": new_key.strip(),
-                        }
-                        # 同時存到舊格式以維持相容
-                        if "api_keys" not in cfg:
-                            cfg["api_keys"] = {}
-                        cfg["api_keys"][pid] = new_key.strip()
-                        _save_config(cfg)
-                        st.success("✅ 已儲存")
+                        secrets_store.set_api_key(pid, new_key.strip())
+                        st.success("✅ 已加密儲存")
                         st.rerun()
             with k3:
                 test_key = new_key.strip() or saved_key or env_key
@@ -515,9 +512,7 @@ for provider in PROVIDERS:
 
             if saved_key:
                 if st.button("🗑️ 移除已儲存的 Key", key=f"del-key-{pid}"):
-                    cfg.get("providers", {}).pop(pid, None)
-                    cfg.get("api_keys", {}).pop(pid, None)
-                    _save_config(cfg)
+                    secrets_store.delete_api_key(pid)
                     st.success("已移除")
                     st.rerun()
 
@@ -547,3 +542,13 @@ with st.expander("📋 全模型比較表", expanded=False):
 """)
 
 st.caption("🔒 所有設定儲存在本機 `config.json`，不會上傳到任何伺服器。")
+
+with st.expander("ℹ️ API Key 加密機制", expanded=False):
+    from lib.paths import crypto_key_file
+    st.markdown(f"""
+- **主密鑰位置**：`{crypto_key_file()}`（檔案權限 0600，僅當前使用者可讀）
+- **加密演算法**：PBKDF2-HMAC-SHA256（20 萬次迭代）派生密鑰 + HMAC-SHA256 串流加密與認證
+- **威脅範圍**：保護 `config.json` 不小心外流（例如提交到 git、雲端備份）
+- **無法保護**：能讀取你 `~/.claude/` 整個目錄的攻擊者，因為主密鑰也在那裡
+- **跨機器**：把 `config.json` 移到別台機器後，原本加密的 Key 解不開，需要重新輸入
+""")

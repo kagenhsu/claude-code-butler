@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(open \"http://localhost:8501/自動化任務\")",
+      "Bash(python -c ' *)",
+      "Bash(open \"http://localhost:8501/Hooks\")"
+    ]
+  }
+}

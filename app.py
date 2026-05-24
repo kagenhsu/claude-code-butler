@@ -7,88 +7,26 @@ from __future__ import annotations
 
 import streamlit as st
 
-from pathlib import Path
-
 from lib.paths import claude_dir, user_skills_dir
 from lib.skills import list_skills
 from lib.status import detect_status
 from lib.hardware import detect_hardware, estimate_task_capacity
 from lib.usage import detect_usage
-
-STYLE_CSS = (Path(__file__).parent / "assets" / "style.css").read_text()
+from lib.ui import inject_style
+from lib.nav import render_nav
 
 st.set_page_config(
-    page_title="Claude Code 管家",
+    page_title="儀表板 | Claude Code 管家",
     page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-st.markdown(f"<style>{STYLE_CSS}</style>", unsafe_allow_html=True)
-
-# Streamlit 選單中文化
-st.markdown("""<script>
-const translations = {
-    'Rerun': '重新執行',
-    'Settings': '設定',
-    'Print': '列印',
-    'Record a screencast': '錄製畫面',
-    'Developer options': '開發者選項',
-    'Clear cache': '清除快取',
-    'Deploy': '部署',
-    'Browse files': '瀏覽檔案',
-    'Drag and drop files here': '拖放檔案到這裡',
-    'Limit 200MB per file': '每個檔案最大 200MB',
-    'or': '或',
-    'Delete': '刪除',
-    'Press Enter': '按 Enter',
-    'to apply': '套用',
-    'Running...': '執行中...',
-    'Made with Streamlit': '由 Streamlit 驅動',
-};
-function translateUI() {
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-        const node = walker.currentNode;
-        for (const [en, zh] of Object.entries(translations)) {
-            if (node.textContent.trim() === en) {
-                node.textContent = zh;
-            }
-        }
-    }
-}
-const observer = new MutationObserver(() => setTimeout(translateUI, 100));
-observer.observe(document.body, { childList: true, subtree: true });
-setTimeout(translateUI, 500);
-</script>""", unsafe_allow_html=True)
-
-# ── 側邊欄：新手指南 ──────────────────────────────────────
-with st.sidebar:
-    st.markdown("### 🎓 新手指南")
-    with st.expander("第一次使用？點我看 3 分鐘導覽", expanded=False):
-        st.markdown(
-            """
-            **Claude Code 管家是什麼？**
-            專為 Claude Code 打造的本機網頁管理介面。
-
-            **你會用到的頁面**：
-            1. **📂 Skills** — 教 Claude 做特定任務（最常用）
-            2. **🤖 雲端模型** — 設定 OpenAI/Claude API（v2）
-            3. **💻 本地模型** — 管 Ollama 等本地模型（v2）
-            4. **💬 對話沙盒** — 比較不同 AI 回答（v2）
-            5. **⚙️ 設定** — 系統資訊
-            6. **📱 通訊軟體** — 用 LINE/Telegram 跟 AI 對話（v2）
-            7. **🤖 自動化任務** — 看 agent 在做什麼、排程任務（v2）
-
-            **小白起手式**：點側邊欄『📂 Skills』→ 選一個範本一鍵建立 → 在 Claude Code 輸入 `/skill 名稱` 就會啟動！
-            """
-        )
-
-    st.divider()
-    st.caption("💡 提示：所有頁面都有 ❓ 圖示，hover 上去看詳細說明。")
+inject_style(st)
+render_nav()
 
 # ── 主畫面 ──────────────────────────────────────────────
-st.title("🧠 Claude Code 管家")
+st.title("🧠 儀表板")
 st.caption("你的 AI 助手管理中心 — 管理 Skills、雲端與本地大語言模型")
 
 # 偵測系統狀態
@@ -106,7 +44,28 @@ except Exception:
 if skill_count == 0:
     st.success(
         "👋 **歡迎使用 Claude Code 管家！** 這是你第一次用，建議從建立第一個 Skill 開始 → "
-        "點側邊欄的「**技能管理**」進入，有 3 個現成範本可以一鍵建立。"
+        "點上方的「**📂 技能**」進入，有 3 個現成範本可以一鍵建立。"
+    )
+
+with st.expander("🎓 第一次使用？點我看 3 分鐘導覽", expanded=False):
+    st.markdown(
+        """
+        **Claude Code 管家是什麼？**
+        專為 Claude Code 打造的本機網頁管理介面。
+
+        **你會用到的頁面**：
+        1. **📂 技能** — 教 Claude 做特定任務（最常用）
+        2. **🤖 雲端** — 設定 OpenAI / Claude API
+        3. **💻 本地** — 管 Ollama 等本地模型
+        4. **💬 對話** — 跟不同 AI 討論想法
+        5. **⚙️ 設定** — 系統資訊
+        6. **📱 通訊** — 用 LINE / Telegram 跟 AI 對話
+        7. **🤖 任務** — 看 agent 在做什麼、排程任務
+
+        **小白起手式**：點上方「📂 技能」→ 選一個範本一鍵建立 → 在 Claude Code 輸入 `/skill 名稱` 就會啟動！
+
+        💡 所有頁面都有 ❓ 圖示，hover 上去看詳細說明。
+        """
     )
 
 # ── 狀態總覽 ──────────────────────────────────────────────

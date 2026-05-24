@@ -1,7 +1,7 @@
 """共用 UI 元件：CSS + 中文化"""
 from pathlib import Path
 
-STYLE_CSS = (Path(__file__).parent.parent / "assets" / "style.css").read_text()
+_CSS_PATH = Path(__file__).parent.parent / "assets" / "style.css"
 
 TRANSLATE_JS = """<script>
 const _t = {
@@ -20,5 +20,6 @@ setTimeout(_tr,500);
 
 
 def inject_style(st_module) -> None:
-    st_module.markdown(f"<style>{STYLE_CSS}</style>", unsafe_allow_html=True)
+    css = _CSS_PATH.read_text(encoding="utf-8")
+    st_module.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
     st_module.markdown(TRANSLATE_JS, unsafe_allow_html=True)

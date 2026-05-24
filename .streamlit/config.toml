@@ -2,8 +2,11 @@
 gatherUsageStats = false
 
 [client]
-showSidebarNavigation = true
+showSidebarNavigation = false
 toolbarMode = "viewer"
 
 [server]
 headless = true
+
+[theme]
+base = "light"
